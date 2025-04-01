@@ -297,9 +297,10 @@ class PostgresImporter:
         
         return None
     
-    def create_booking(self, conn, apartment_id: str, guest_id: Optional[str], 
-                      check_in_date: str, check_out_date: Optional[str] = None,
-                      rate: float = 0.0, payment_source_id: Optional[str] = None) -> str:
+    def create_booking(self, conn, apartment_id: str, guest_id: Optional[str] = None, 
+                      check_in_date: str = None, check_out_date: Optional[str] = None,
+                      rate: float = 0.0, payment_source_id: Optional[str] = None,
+                      total_amount: Optional[float] = None) -> str:
         """
         Create a new booking with check_in and optional check_out dates.
         
@@ -311,6 +312,7 @@ class PostgresImporter:
             check_out_date: Check-out date in ISO format (may be None)
             rate: Nightly rate (default 0.0)
             payment_source_id: Payment source UUID (may be None)
+            total_amount: Total booking amount (may be None, parsed from comment)
             
         Returns:
             str: Created booking UUID
@@ -318,12 +320,14 @@ class PostgresImporter:
         booking_id = str(uuid.uuid4())
         values = {
             'id': booking_id,
-            'apartment_id': apartment_id,
-            'check_in': check_in_date
+            'apartment_id': apartment_id
         }
         
+        if check_in_date:
+            values['check_in'] = check_in_date
+        
         # If check_out date is provided, calculate nights and add to values
-        if check_out_date:
+        if check_out_date and check_in_date:
             values['check_out'] = check_out_date
             
             # Try to calculate nights if dates are valid
@@ -334,10 +338,19 @@ class PostgresImporter:
                 
                 if nights > 0:
                     values['nights'] = nights
-                    values['total_amount'] = rate * nights
+                    
+                    # Use provided total_amount if available, otherwise calculate from rate and nights
+                    if total_amount is not None:
+                        values['total_amount'] = total_amount
+                    else:
+                        values['total_amount'] = rate * nights
             except (ValueError, TypeError):
-                # If date parsing fails, leave nights and total_amount as NULL
-                pass
+                # If date parsing fails but we have total_amount, still set it
+                if total_amount is not None:
+                    values['total_amount'] = total_amount
+        elif total_amount is not None:
+            # Even without check_out date, set total_amount if provided
+            values['total_amount'] = total_amount
         
         if guest_id:
             values['guest_id'] = guest_id
@@ -511,50 +524,51 @@ class PostgresImporter:
             # Detect payment source
             payment_source_id = self.detect_payment_source(conn, comment)
             
+            # Parse total amount from comment
+            total_amount = self.parse_total_amount(comment)
+            
             # Check for existing booking by comment
             existing_booking_id = self.get_existing_booking_by_comment(conn, apartment_id, comment)
             
             if existing_booking_id:
                 booking_id = existing_booking_id
                 
-                # Update booking dates if needed (may have changed)
-                update_stmt = (
-                    update(self.bookings)
-                    .where(self.bookings.c.id == booking_id)
-                    .values(check_in=check_in_date)
-                )
+                # Calculate values for update
+                update_values = {"check_in": check_in_date}
                 
                 if check_out_date:
-                    # Calculate nights
+                    update_values["check_out"] = check_out_date
+                    
+                    # Calculate nights if we have valid dates
                     try:
                         check_in = datetime.fromisoformat(check_in_date)
                         check_out = datetime.fromisoformat(check_out_date)
                         nights = (check_out - check_in).days
                         
                         if nights > 0:
-                            update_stmt = (
-                                update(self.bookings)
-                                .where(self.bookings.c.id == booking_id)
-                                .values(
-                                    check_in=check_in_date,
-                                    check_out=check_out_date,
-                                    nights=nights,
-                                    total_amount=rate * nights
-                                )
-                            )
+                            update_values["nights"] = nights
+                            
+                            # Use parsed total amount if available, otherwise calculate from rate and nights
+                            if total_amount is not None:
+                                update_values["total_amount"] = total_amount
+                            else:
+                                update_values["total_amount"] = rate * nights
                     except (ValueError, TypeError):
-                        update_stmt = (
-                            update(self.bookings)
-                            .where(self.bookings.c.id == booking_id)
-                            .values(
-                                check_in=check_in_date,
-                                check_out=check_out_date
-                            )
-                        )
+                        pass
+                elif total_amount is not None:
+                    # If we only have total amount but not check_out, still update the total_amount
+                    update_values["total_amount"] = total_amount
+                
+                # Execute the update with all collected values
+                update_stmt = (
+                    update(self.bookings)
+                    .where(self.bookings.c.id == booking_id)
+                    .values(**update_values)
+                )
                 
                 conn.execute(update_stmt)
             else:
-                # Create a new booking with correct dates
+                # Create a new booking with correct parameters
                 booking_id = self.create_booking(
                     conn=conn,
                     apartment_id=apartment_id,
@@ -562,7 +576,8 @@ class PostgresImporter:
                     check_in_date=check_in_date,
                     check_out_date=check_out_date,
                     rate=rate,
-                    payment_source_id=payment_source_id
+                    payment_source_id=payment_source_id,
+                    total_amount=total_amount
                 )
             
             # Process all reservations in the group
@@ -619,6 +634,68 @@ class PostgresImporter:
         guest_name = guest_name.strip()
         
         return guest_name if guest_name else None
+        
+    def parse_total_amount(self, comment: Optional[str]) -> Optional[float]:
+        """
+        Parse total amount from comment text in various formats such as:
+        - total US$: 555
+        - total: 555
+        - Total : 555
+        - Total USD: $1971.42
+        - Total: 1971.42
+        - Total : 1459.94
+        - Total USD: $1620.00
+        - Total: 642
+        - Total USD: $1,075.00
+        
+        Args:
+            comment: Reservation comment
+            
+        Returns:
+            float: Total amount or None if can't be parsed
+        """
+        if not comment:
+            return None
+            
+        # Split by lines to find the total amount in any line
+        lines = comment.split('\n')
+        
+        # Patterns to match:
+        # 1. Case insensitive "total" followed by optional currency indicators
+        # 2. Followed by a colon (with optional spaces)
+        # 3. Followed by an optional dollar sign
+        # 4. Followed by a number which may include commas and a decimal point
+        import re
+        
+        total_patterns = [
+            # Match "total" (case insensitive) followed by various optional text and then a number
+            r'(?i)total(?:\s*(?:US)?(?:\$|USD)?)?(?:\s*:)\s*\$?\s*([\d,\.]+)',
+            # Alternative format with dollar sign after "USD"
+            r'(?i)total\s+USD\s*\$?\s*:?\s*([\d,\.]+)'
+        ]
+        
+        # Try to match the patterns in each line
+        for line in lines:
+            line = line.strip()
+            
+            for pattern in total_patterns:
+                match = re.search(pattern, line)
+                if match:
+                    # Extract the amount string and clean it
+                    amount_str = match.group(1)
+                    
+                    # Remove commas (for numbers like 1,075.00)
+                    amount_str = amount_str.replace(',', '')
+                    
+                    try:
+                        # Convert to float
+                        return float(amount_str)
+                    except (ValueError, TypeError):
+                        # If conversion fails, continue to the next match
+                        continue
+                        
+        # If no valid total amount was found
+        return None
     
     def detect_payment_source(self, conn, comment: Optional[str]) -> Optional[str]:
         """
