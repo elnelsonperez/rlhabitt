@@ -2,7 +2,7 @@ import os
 import json
 import uuid
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Optional, Union
 
 # SQLAlchemy imports
@@ -382,14 +382,18 @@ class PostgresImporter:
         if not building_name:
             logger.warning("Building data missing name, skipping")
             return
-            
-        logger.info(f"Processing building: {building_name}")
         
         # Get or create the building
         building_id = self.get_or_create_building(conn, building_name)
         
         # Process each apartment
-        for apartment_data in building_data.get("apartments", []):
+        apartment_count = len(building_data.get("apartments", []))
+        logger.debug(f"Building '{building_name}' has {apartment_count} apartments")
+        
+        for apt_idx, apartment_data in enumerate(building_data.get("apartments", []), 1):
+            apt_code = apartment_data.get("code")
+            apt_raw = apartment_data.get("raw_text")
+            logger.debug(f"Processing apartment {apt_idx}/{apartment_count}: {apt_code or apt_raw}")
             self.process_apartment(conn, building_id, apartment_data)
             
     def process_apartment(self, conn, building_id: str, apartment_data: Dict):
@@ -408,8 +412,6 @@ class PostgresImporter:
         if not raw_text:
             logger.warning("Apartment data missing raw_text, skipping")
             return
-            
-        logger.info(f"Processing apartment: {raw_text}")
         
         # Get or create the owner
         owner_id = self.get_or_create_owner(conn, owner_name) if owner_name else None
@@ -418,7 +420,12 @@ class PostgresImporter:
         apartment_id = self.get_or_create_apartment(conn, building_id, apt_code, raw_text, owner_id)
         
         # Process each reservation
-        for reservation_data in apartment_data.get("reservations", []):
+        reservation_count = len(apartment_data.get("reservations", []))
+        logger.debug(f"Apartment '{raw_text}' has {reservation_count} reservations")
+        
+        for res_idx, reservation_data in enumerate(apartment_data.get("reservations", []), 1):
+            res_date = reservation_data.get("date", "unknown date")
+            logger.debug(f"Processing reservation {res_idx}/{reservation_count}: {res_date}")
             self.process_reservation(conn, apartment_id, reservation_data)
     
     def parse_guest_name(self, comment: Optional[str]) -> Optional[str]:
@@ -551,22 +558,47 @@ class PostgresImporter:
         if not month or not year:
             raise ValueError("Sheet data missing month or year")
             
+        # Log the month and year being imported
+        month_name = {
+            1: "January", 2: "February", 3: "March", 4: "April",
+            5: "May", 6: "June", 7: "July", 8: "August",
+            9: "September", 10: "October", 11: "November", 12: "December"
+        }.get(month, "Unknown")
+        
+        logger.info(f"Starting import for {month_name} {year}")
+            
         # Create import log
         import_id = self.create_import_log(month, year)
+        building_count = len(sheet_data.get("buildings", []))
+        logger.info(f"Found {building_count} buildings to process")
         
         try:
+            # Count apartments and reservations for logging
+            apartment_count = 0
+            reservation_count = 0
+            
+            for building in sheet_data.get("buildings", []):
+                apartment_count += len(building.get("apartments", []))
+                for apartment in building.get("apartments", []):
+                    reservation_count += len(apartment.get("reservations", []))
+            
+            logger.info(f"Found {apartment_count} apartments and {reservation_count} reservations")
+            
             # Use a single transaction for the entire import process
             with self.engine.begin() as conn:
                 # Process each building
-                for building_data in sheet_data.get("buildings", []):
+                for i, building_data in enumerate(sheet_data.get("buildings", []), 1):
+                    building_name = building_data.get("name", f"Building #{i}")
+                    logger.info(f"Processing building {i}/{building_count}: {building_name}")
                     self.process_building(conn, building_data)
                 
             # Update import log to completed
             self.update_import_log(import_id, "completed")
+            logger.info(f"Successfully completed import for {month_name} {year}")
             
             return import_id
         except Exception as e:
-            logger.error(f"Error importing sheet data: {e}")
+            logger.error(f"Error importing {month_name} {year} sheet data: {e}")
             self.update_import_log(import_id, "failed", str(e))
             raise
     
@@ -590,22 +622,59 @@ class PostgresImporter:
         month = last_sheet_data.get("month", datetime.now().month)
         year = last_sheet_data.get("year", datetime.now().year)
         
+        logger.info(f"Starting multi-sheet import with {len(sheets)} sheets")
+        
         # Create import log
         import_id = self.create_import_log(month, year)
         
         try:
+            # Count total buildings, apartments, and reservations for logging
+            total_buildings = 0
+            total_apartments = 0
+            total_reservations = 0
+            
+            for sheet in sheets:
+                sheet_data = sheet.get("data", {})
+                total_buildings += len(sheet_data.get("buildings", []))
+                
+                for building in sheet_data.get("buildings", []):
+                    total_apartments += len(building.get("apartments", []))
+                    for apartment in building.get("apartments", []):
+                        total_reservations += len(apartment.get("reservations", []))
+            
+            logger.info(f"Found total: {total_buildings} buildings, {total_apartments} apartments, {total_reservations} reservations")
+            
             # Use a single transaction for all sheets
             with self.engine.begin() as conn:
                 # Process each sheet
-                for sheet in sheets:
+                for sheet_idx, sheet in enumerate(sheets, 1):
                     sheet_data = sheet.get("data", {})
+                    sheet_name = sheet.get("name", f"Sheet #{sheet_idx}")
+                    sheet_month = sheet_data.get("month")
+                    sheet_year = sheet_data.get("year")
+                    
+                    if sheet_month and sheet_year:
+                        month_name = {
+                            1: "January", 2: "February", 3: "March", 4: "April",
+                            5: "May", 6: "June", 7: "July", 8: "August",
+                            9: "September", 10: "October", 11: "November", 12: "December"
+                        }.get(sheet_month, "Unknown")
+                        logger.info(f"Processing sheet {sheet_idx}/{len(sheets)}: {month_name} {sheet_year}")
+                    else:
+                        logger.info(f"Processing sheet {sheet_idx}/{len(sheets)}: {sheet_name}")
                     
                     # Process each building in the sheet
-                    for building_data in sheet_data.get("buildings", []):
+                    building_count = len(sheet_data.get("buildings", []))
+                    logger.info(f"Sheet contains {building_count} buildings")
+                    
+                    for b_idx, building_data in enumerate(sheet_data.get("buildings", []), 1):
+                        building_name = building_data.get("name", f"Building #{b_idx}")
+                        logger.info(f"Processing building {b_idx}/{building_count}: {building_name}")
                         self.process_building(conn, building_data)
             
             # Update import log to completed
             self.update_import_log(import_id, "completed")
+            logger.info(f"Successfully completed import of {len(sheets)} sheets")
             
             return import_id
         except Exception as e:

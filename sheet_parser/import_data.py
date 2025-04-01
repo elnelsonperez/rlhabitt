@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Import reservation data from Excel sheets using the Supabase API.
+Import reservation data from JSON files to PostgreSQL database.
 """
 
 import os
@@ -11,86 +11,19 @@ import argparse
 from pathlib import Path
 from dotenv import load_dotenv
 
-from src.xlsx_parser import CondoRentalParser
 from src.postgres_importer import PostgresImporter
 
-# Configure logging
+# Configure logging with detailed formatting
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
 
-def parse_excel_to_json(file_path, sheet_name=None, output_file=None, verbose=False):
+def import_json_to_postgres(json_data, verbose=False):
     """
-    Parse Excel file to JSON format.
-    
-    Args:
-        file_path: Path to the Excel file
-        sheet_name: Optional sheet name to parse (if None, parse all sheets)
-        output_file: Path to save JSON output (if None, print to stdout)
-        verbose: Enable verbose logging
-    
-    Returns:
-        dict: Parsed data as a dictionary
-    """
-    parser = CondoRentalParser(file_path, verbose=verbose)
-    
-    if not parser.load_workbook():
-        logger.error(f"Failed to load workbook: {file_path}")
-        return None
-    
-    sheet_names = parser.get_sheet_names()
-    if not sheet_names:
-        logger.error("No sheets found in the workbook")
-        return None
-    
-    # If specific sheet requested, parse only that sheet
-    if sheet_name:
-        if sheet_name not in sheet_names:
-            logger.error(f"Sheet '{sheet_name}' not found in workbook")
-            return None
-        
-        logger.info(f"Parsing sheet: {sheet_name}")
-        result = parser.parse_sheet(sheet_name)
-        
-        if output_file:
-            with open(output_file, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2, ensure_ascii=False)
-            logger.info(f"JSON data saved to: {output_file}")
-        
-        return result
-    
-    # Otherwise parse all sheets
-    logger.info(f"Parsing all sheets in workbook")
-    
-    # For multi-sheet parsing, we'll use a different format
-    all_sheets = []
-    for sheet_name in sheet_names:
-        month_num, year = parser.parse_sheet_date(sheet_name)
-        if month_num is None or year is None:
-            logger.warning(f"Skipping sheet with invalid name: {sheet_name}")
-            continue
-        
-        sheet_data = parser.parse_sheet(sheet_name)
-        if sheet_data:
-            all_sheets.append({
-                "name": sheet_name,
-                "data": sheet_data
-            })
-    
-    result = {"sheets": all_sheets}
-    
-    if output_file:
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
-        logger.info(f"JSON data saved to: {output_file}")
-    
-    return result
-
-def import_json_to_supabase(json_data, verbose=False):
-    """
-    Import JSON data to Supabase.
+    Import JSON data to PostgreSQL database.
     
     Args:
         json_data: JSON data as dictionary or path to JSON file
@@ -110,10 +43,14 @@ def import_json_to_supabase(json_data, verbose=False):
     
     # Create importer
     try:
+        # Set logging level to DEBUG if verbose is True
+        if verbose:
+            logging.getLogger('src.postgres_importer').setLevel(logging.DEBUG)
+        
         importer = PostgresImporter()
         
         # Import the data
-        logger.info("Importing data to PostgreSQL")
+        logger.info("Starting import process to PostgreSQL database")
         import_id = importer.import_json(json_data)
         
         logger.info(f"Import completed successfully with ID: {import_id}")
@@ -129,52 +66,28 @@ def main():
     # Load environment variables from .env file
     load_dotenv()
     
-    parser = argparse.ArgumentParser(description="Import reservation data from Excel to Supabase")
-    parser.add_argument("file_path", help="Path to Excel file or JSON file to import")
-    parser.add_argument("--sheet", help="Specific sheet name to import (default: all sheets)")
-    parser.add_argument("--json", help="Output JSON to this file instead of importing")
+    parser = argparse.ArgumentParser(description="Import reservation data from JSON to PostgreSQL")
+    parser.add_argument("file_path", help="Path to JSON file to import")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     
     args = parser.parse_args()
     
-    # Determine if input is Excel or JSON
+    # Validate file is JSON
     file_path = args.file_path
     file_ext = Path(file_path).suffix.lower()
     
-    if file_ext in ['.xlsx', '.xls']:
-        # Parse Excel to JSON
-        json_data = parse_excel_to_json(
-            file_path=file_path,
-            sheet_name=args.sheet,
-            output_file=args.json,
-            verbose=args.verbose
-        )
-        
-        # If only JSON output requested, stop here
-        if args.json:
-            return 0
-        
-        # Otherwise import the JSON data
-        if json_data:
-            import_id = import_json_to_supabase(
-                json_data=json_data,
-                verbose=args.verbose
-            )
-            return 0 if import_id else 1
-        else:
-            return 1
-    
-    elif file_ext == '.json':
-        # Import directly from JSON file
-        import_id = import_json_to_supabase(
-            json_data=file_path,
-            verbose=args.verbose
-        )
-        return 0 if import_id else 1
-    
-    else:
-        logger.error(f"Unsupported file type: {file_ext}")
+    if file_ext != '.json':
+        logger.error(f"Unsupported file type: {file_ext}, only .json files are supported")
         return 1
+    
+    # Import directly from JSON file
+    logger.info(f"Importing data from {file_path}")
+    import_id = import_json_to_postgres(
+        json_data=file_path,
+        verbose=args.verbose
+    )
+    
+    return 0 if import_id else 1
 
 if __name__ == "__main__":
     sys.exit(main())
