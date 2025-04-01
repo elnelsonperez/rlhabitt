@@ -50,7 +50,7 @@ def download_onedrive_file(file_id, output_path=None, verbose=False):
         logger.error(f"Error downloading file: {e}")
         raise
 
-def parse_excel_file(excel_path, sheet_name=None, parse_all=False, verbose=False):
+def parse_excel_file(excel_path, sheet_name=None, parse_all=False, months_back=None, verbose=False):
     """Parse the Excel file and return the data"""
     logger.info(f"Parsing Excel file: {excel_path}")
     try:
@@ -66,8 +66,59 @@ def parse_excel_file(excel_path, sheet_name=None, parse_all=False, verbose=False
         if not sheet_names:
             raise Exception("No sheets found in the workbook")
         
+        # If months_back is specified, process sheets for the last N months
+        if months_back is not None and months_back > 0:
+            from datetime import datetime, timedelta
+            
+            current_date = datetime.now()
+            current_month = current_date.month
+            current_year = current_date.year
+            
+            # Calculate target months (including current month)
+            target_months = []
+            for i in range(months_back):
+                # Calculate month and year for i months ago
+                target_date = current_date - timedelta(days=30*i)
+                target_months.append((target_date.month, target_date.year))
+            
+            logger.info(f"Looking for sheets for the last {months_back} months: {target_months}")
+            
+            # Find sheets that match the target months
+            valid_sheets = []
+            for s in sheet_names:
+                month_num, year = parser.parse_sheet_date(s)
+                if month_num is not None and year is not None:
+                    if (month_num, year) in target_months:
+                        valid_sheets.append(s)
+            
+            if not valid_sheets:
+                raise Exception(f"No sheets found for the last {months_back} months")
+            
+            logger.info(f"Found {len(valid_sheets)} sheets for requested months: {', '.join(valid_sheets)}")
+            
+            # Parse the valid sheets
+            combined_data = {
+                "sheets": []
+            }
+            
+            for valid_sheet in valid_sheets:
+                logger.info(f"Parsing sheet: {valid_sheet}")
+                sheet_data = parser.parse_sheet(valid_sheet)
+                if sheet_data:
+                    combined_data["sheets"].append({
+                        "name": valid_sheet,
+                        "data": sheet_data
+                    })
+                else:
+                    logger.warning(f"Failed to parse sheet: {valid_sheet}")
+            
+            if not combined_data["sheets"]:
+                raise Exception("Failed to parse any sheets")
+            
+            return combined_data
+            
         # If parse_all flag is set, process all sheets with valid month names
-        if parse_all:
+        elif parse_all:
             logger.info("Processing all sheets with valid month names")
             valid_sheets = []
             for s in sheet_names:
@@ -103,20 +154,38 @@ def parse_excel_file(excel_path, sheet_name=None, parse_all=False, verbose=False
         
         # Process a single sheet
         else:
-            # If no sheet_name provided, find the first sheet with a valid month abbreviation
+            # If no sheet_name provided, try to find the sheet for the current month
             if not sheet_name:
-                # Try to find a sheet with a valid month abbreviation
-                valid_sheet = None
+                # Get current date
+                from datetime import datetime
+                current_date = datetime.now()
+                current_month = current_date.month
+                current_year = current_date.year
+                
+                logger.debug(f"Looking for sheet matching current month: {current_month}/{current_year}")
+                
+                # Try to find a sheet with the current month and year
+                current_month_sheet = None
+                valid_sheet = None  # Fallback to any valid month sheet
+                
                 for s in sheet_names:
                     # Check if the sheet name matches the [Month]. [Year] pattern
                     month_num, year = parser.parse_sheet_date(s)
                     if month_num is not None and year is not None:
-                        valid_sheet = s
-                        break
+                        if valid_sheet is None:
+                            valid_sheet = s  # Keep the first valid month as fallback
+                        
+                        # Check if this sheet matches current month and year
+                        if month_num == current_month and year == current_year:
+                            current_month_sheet = s
+                            break
                 
-                if valid_sheet:
+                if current_month_sheet:
+                    sheet_name = current_month_sheet
+                    logger.info(f"No sheet specified, using current month sheet: {sheet_name}")
+                elif valid_sheet:
                     sheet_name = valid_sheet
-                    logger.info(f"No sheet specified, using first valid month sheet: {sheet_name}")
+                    logger.info(f"Current month sheet not found, using first valid month sheet: {sheet_name}")
                 else:
                     # Fallback to the first sheet if no valid month sheet found
                     sheet_name = sheet_names[0]
@@ -171,12 +240,17 @@ def main():
     # Optional arguments
     parser.add_argument(
         "-s", "--sheet", 
-        help="Name of the sheet to parse (default: first sheet with valid month name)"
+        help="Name of the sheet to parse (default: current month sheet, or first valid month sheet if not found)"
     )
     parser.add_argument(
         "-a", "--all",
         action="store_true",
         help="Process all sheets with valid month names instead of just one"
+    )
+    parser.add_argument(
+        "-m", "--months",
+        type=int,
+        help="Look back and process sheets for the specified number of months (including current month)"
     )
     parser.add_argument(
         "-o", "--output", 
@@ -221,8 +295,8 @@ def main():
         if args.download_only and args.parse_only:
             raise ValueError("Cannot use both --download-only and --parse-only together")
             
-        if args.sheet and args.all:
-            raise ValueError("Cannot use both --sheet and --all together")
+        if sum(1 for opt in [args.sheet, args.all, args.months] if opt) > 1:
+            raise ValueError("Cannot use more than one of --sheet, --all, or --months together")
         
         # Parse only mode - skip download
         if args.parse_only:
@@ -241,7 +315,7 @@ def main():
             return 0
         
         # Parse the Excel file
-        data = parse_excel_file(excel_path, args.sheet, args.all, args.verbose)
+        data = parse_excel_file(excel_path, args.sheet, args.all, args.months, args.verbose)
         
         # Save the JSON data
         save_json_data(data, args.output, args.pretty)
