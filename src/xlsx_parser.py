@@ -347,7 +347,7 @@ class CondoRentalParser:
         
         # Scan through rows looking for building names in column B
         # and apartment counts in column A
-        for row in range(6, 100):  # Reasonable range to check
+        for row in range(6, 122):  # Reasonable range to check
             cell_a = sheet.cell(row=row, column=1).value
             cell_b = sheet.cell(row=row, column=2).value
             
