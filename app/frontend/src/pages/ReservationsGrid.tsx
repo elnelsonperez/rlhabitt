@@ -153,24 +153,25 @@ export function ReservationsGridPage() {
               <tr>
                 {/* Apartment column header */}
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px] border-r border-b border-gray-200 bg-gray-50"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px] border-b border-gray-200 bg-gray-50"
                   style={{ 
                     position: 'sticky', 
                     left: 0, 
                     top: 0, 
                     zIndex: 30,
-                    boxShadow: 'inset -8px 0 8px -8px rgba(0, 0, 0, 0.15)'
+                    borderRight: '1px solid #d1d5db',
+                    boxShadow: 'inset -8px 0 8px -8px rgba(0, 0, 0, 0.15), 3px 0 5px -2px rgba(0, 0, 0, 0.08)'
                   }}
                 >
                   Apartamento
                 </th>
-                
+
                 {/* Date column headers */}
                 {daysInMonth.map(date => {
                   const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                   return (
-                    <th 
-                      key={date.toISOString()} 
+                    <th
+                      key={date.toISOString()}
                       className={`p-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-[80px] ${isWeekend ? 'bg-gray-100' : 'bg-gray-50'}`}
                       style={{ position: 'sticky', top: 0, zIndex: 20 }}
                     >
@@ -183,18 +184,17 @@ export function ReservationsGridPage() {
                 })}
               </tr>
             </thead>
-            
+
             <tbody>
               {reservationsData.building.apartments.map(apartment => (
                 <tr key={apartment.id}>
                   {/* Apartment cell */}
-                  <td 
-                    className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-b border-gray-200 bg-white"
-                    style={{ 
-                      position: 'sticky', 
-                      left: 0, 
-                      zIndex: 20,
-                      boxShadow: '4px 0 6px -2px rgba(0, 0, 0, 0.1)'
+                  <td
+                    className="px-6 z-20 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-b border-gray-200 bg-gray-50"
+                    style={{
+                      position: 'sticky',
+                      left: 0,
+                      boxShadow: 'rgb(0 0 0 / 35%) -8px 0px 3px -8px inset, rgba(0, 0, 0, 0.08) 3px 0px 5px -8px'
                     }}
                   >
                     {apartment.code || apartment.raw_text}
