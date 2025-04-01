@@ -43,7 +43,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  login: async (email: string, password: string) => {
+  login: async (email: string, password: string): Promise<boolean> => {
     try {
       set({ isLoading: true, error: null })
       
@@ -59,9 +59,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         user: data.user,
         isAuthenticated: !!data.session, 
       })
+      
+      return true // Login successful
     } catch (error: any) {
       console.error('Login error:', error)
       set({ error: error.message || 'Login failed' })
+      return false // Login failed
     } finally {
       set({ isLoading: false })
     }

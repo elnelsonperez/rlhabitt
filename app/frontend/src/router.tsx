@@ -7,6 +7,8 @@ import {
 } from '@tanstack/react-router'
 import { HomePage } from './pages/Home'
 import { LoginPage } from './pages/Login'
+import { ReservationsGridPage } from './pages/ReservationsGrid'
+import { ReservationDetailPage } from './pages/ReservationDetail'
 import { useAuthStore } from './store/auth'
 import { AppLayout } from './components/Layout'
 
@@ -15,16 +17,22 @@ const rootRoute = createRootRoute({
   component: () => <Outlet />,
 })
 
-// Create the protected layout route with auth check
+// Create the protected layout route
 const layoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'layout',
   component: AppLayout,
-  beforeLoad: () => {
-    // Auth check before route loads
-    const { isAuthenticated } = useAuthStore.getState()
-    if (!isAuthenticated) {
-      throw redirect({ to: '/login' })
+  beforeLoad: ({ location }) => {
+    // Auth check before route loads - only redirect if auth is fully initialized
+    const { isAuthenticated, isLoading } = useAuthStore.getState()
+    
+    // Don't redirect while still loading auth state
+    // This prevents the redirect loop when directly accessing a protected page
+    if (!isAuthenticated && !isLoading) {
+      throw redirect({
+        to: '/login',
+        search: { redirect: location.href }  // Pass the attempted URL for after login
+      })
     }
   },
 })
@@ -36,15 +44,29 @@ const homeRoute = createRoute({
   component: HomePage,
 })
 
-// Login page (accessible only when logged out)
+// Reservations grid page (protected by layout)
+const reservationsGridRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/reservations',
+  component: ReservationsGridPage,
+})
+
+// Reservation detail page (protected by layout)
+const reservationDetailRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/reservations/$reservationId',
+  component: ReservationDetailPage,
+})
+
+// Login page
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   component: LoginPage,
   beforeLoad: () => {
-    // Redirect to home if already authenticated
-    const { isAuthenticated } = useAuthStore.getState()
-    if (isAuthenticated) {
+    // Only redirect if auth is fully loaded and user is authenticated
+    const { isAuthenticated, isLoading } = useAuthStore.getState()
+    if (isAuthenticated && !isLoading) {
       throw redirect({ to: '/' })
     }
   },
@@ -54,6 +76,8 @@ const loginRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   layoutRoute.addChildren([
     homeRoute,
+    reservationsGridRoute,
+    reservationDetailRoute,
   ]),
   loginRoute,
 ])

@@ -1,14 +1,34 @@
 import { useState } from 'react'
 import { useAuthStore } from '../store/auth'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const { login, isLoading, error } = useAuthStore()
+  const navigate = useNavigate()
+  
+  // Get the redirect URL from the search params if it exists
+  const search = useSearch({ from: '/login' })
+  const redirectUrl = search.redirect ? String(search.redirect) : '/'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await login(email, password)
+    
+    // Attempt to login
+    const success = await login(email, password)
+    
+    // If login succeeds, navigate to the redirect URL
+    if (success) {
+      // Extract the pathname from the full URL if needed
+      try {
+        const url = new URL(redirectUrl)
+        navigate({ to: url.pathname })
+      } catch (e) {
+        // If not a valid URL, just use the string as a path
+        navigate({ to: redirectUrl })
+      }
+    }
   }
 
   return (
