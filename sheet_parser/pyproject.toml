@@ -13,10 +13,12 @@ requests = "^2.32.3"
 python-dotenv = "^1.1.0"
 openpyxl = "^3.1.5"
 flask = "^3.0.3"
+gunicorn = "^21.2.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-sheet_parser = "src.main:main"
+sheet_parser_cli = "sheet_parser.src.__main__:main"
+sheet_parser_api = "sheet_parser.src.api_server:main"

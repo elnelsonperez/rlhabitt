@@ -143,7 +143,11 @@ The parser identifies specific buildings for special handling:
 
 ### REST API Mode
 
-The tool can also be run as a REST API server:
+The tool can also be run as a REST API server.
+
+### Development Mode
+
+Use these commands during development:
 
 ```bash
 # Start the API server with default settings
@@ -154,6 +158,29 @@ python -m sheet_parser.src.api_server --host 127.0.0.1 --port 8080
 
 # Run in debug mode
 python -m sheet_parser.src.api_server --debug
+```
+
+### Production Mode
+
+For production deployment (e.g., on DigitalOcean App Platform):
+
+```bash
+# Install gunicorn if not already installed
+poetry add gunicorn
+
+# Run using gunicorn
+gunicorn wsgi:app
+
+# With specific host and port
+gunicorn wsgi:app --bind 0.0.0.0:8080
+
+# With multiple workers (a good rule is 2-4 workers per CPU core)
+gunicorn wsgi:app --workers 4
+```
+
+The project includes a `Procfile` for platforms like DigitalOcean App Platform or Heroku:
+```
+web: gunicorn wsgi:app
 ```
 
 #### API Authentication
