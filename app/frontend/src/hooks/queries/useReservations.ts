@@ -1,24 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase/client'
 import { useAuthStore } from '../../store/auth'
+import { Database } from '../../lib/supabase/database.types'
 
-export interface Apartment {
-  id: string
-  code: string | null
-  raw_text: string
-  owner_id: string | null
-  building_id: string
-}
-
-export interface Reservation {
-  id: string
-  booking_id: string
-  apartment_id: string
-  date: string
-  rate: number
-  color_hex: string | null
-  comment: string | null
-}
+// Define types using the generated Database types
+export type Apartment = Database['public']['Tables']['apartments']['Row']
+export type Reservation = Database['public']['Tables']['reservations']['Row']
+export type Building = Database['public']['Tables']['buildings']['Row']
 
 export interface ReservationsByDay {
   [date: string]: {
@@ -26,9 +14,7 @@ export interface ReservationsByDay {
   }
 }
 
-export interface BuildingWithApartments {
-  id: string
-  name: string
+export interface BuildingWithApartments extends Building {
   apartments: Apartment[]
 }
 
@@ -49,7 +35,7 @@ export function useReservations(buildingId: string, year: number, month: number)
       // First, get the building data with its apartments
       const { data: buildingData, error: buildingError } = await supabase
         .from('buildings')
-        .select('id, name')
+        .select('id, name, description, location, active, created_at, updated_at')
         .eq('id', buildingId)
         .single()
         
@@ -64,7 +50,7 @@ export function useReservations(buildingId: string, year: number, month: number)
       // Get apartments for this building
       const { data: apartments, error: apartmentsError } = await supabase
         .from('apartments')
-        .select('id, code, raw_text, owner_id, building_id')
+        .select('id, code, raw_text, owner_id, building_id, active, description, created_at, updated_at')
         .eq('building_id', buildingId)
         .order('raw_text', { ascending: true })
         
@@ -82,7 +68,7 @@ export function useReservations(buildingId: string, year: number, month: number)
       // Get reservations for this building's apartments and date range
       const { data: reservations, error: reservationsError } = await supabase
         .from('reservations')
-        .select('id, booking_id, apartment_id, date, rate, color_hex, comment')
+        .select('id, booking_id, apartment_id, date, rate, color_hex, comment, created_at, updated_at')
         .in('apartment_id', apartments.map(apt => apt.id))
         .gte('date', formattedStartDate)
         .lte('date', formattedEndDate)
@@ -102,12 +88,15 @@ export function useReservations(buildingId: string, year: number, month: number)
         reservationsByDay[reservation.date][reservation.apartment_id] = reservation
       })
       
+      // Create a strongly typed building with apartments object
+      const buildingWithApartments: BuildingWithApartments = {
+        ...buildingData,
+        apartments
+      }
+      
       // Return the organized data
       return {
-        building: {
-          ...buildingData,
-          apartments
-        },
+        building: buildingWithApartments,
         reservationsByDay,
         startDate: formattedStartDate,
         endDate: formattedEndDate
@@ -123,7 +112,7 @@ export function useReservations(buildingId: string, year: number, month: number)
 export function useBuildings() {
   const { isAuthenticated } = useAuthStore()
   
-  return useQuery({
+  return useQuery<Building[]>({
     queryKey: ['buildings'],
     queryFn: async () => {
       // Check if user is authenticated
@@ -133,7 +122,7 @@ export function useBuildings() {
       
       const { data, error } = await supabase
         .from('buildings')
-        .select('id, name')
+        .select('id, name, description, location, active, created_at, updated_at')
         .order('name', { ascending: true })
         
       if (error) {

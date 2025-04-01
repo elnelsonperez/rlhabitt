@@ -9,7 +9,7 @@ interface AuthState {
   isLoading: boolean
   error: string | null
   initialize: () => Promise<void>
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
 }
 

@@ -10,7 +10,9 @@ export function LoginPage() {
   
   // Get the redirect URL from the search params if it exists
   const search = useSearch({ from: '/login' })
-  const redirectUrl = search.redirect ? String(search.redirect) : '/'
+  // Use type assertion to access the redirect property
+  const params = search as unknown as { redirect?: string }
+  const redirectUrl = params.redirect ? String(params.redirect) : '/'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

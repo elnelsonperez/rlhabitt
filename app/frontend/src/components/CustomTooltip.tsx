@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 
 interface TooltipProps {
@@ -90,24 +90,42 @@ export function useTooltip(delay = 100) {
 export function WithTooltip({ text, children, delay = 100 }: TooltipProps & { children: React.ReactElement }) {
   const { Tooltip, tooltipHandlers } = useTooltip(delay)
   
-  const childWithTooltip = React.cloneElement(children, {
-    onMouseEnter: (e: React.MouseEvent) => {
-      tooltipHandlers.onMouseEnter(e, text)
-      if (children.props.onMouseEnter) children.props.onMouseEnter(e)
-    },
-    onMouseLeave: (e: React.MouseEvent) => {
-      tooltipHandlers.onMouseLeave()
-      if (children.props.onMouseLeave) children.props.onMouseLeave(e)
-    },
-    onFocus: (e: React.FocusEvent) => {
-      tooltipHandlers.onFocus(e, text)
-      if (children.props.onFocus) children.props.onFocus(e)
-    },
-    onBlur: (e: React.FocusEvent) => {
-      tooltipHandlers.onBlur()
-      if (children.props.onBlur) children.props.onBlur(e)
+  // Type guard to check if props have the event handlers
+  type ElementWithHandlers = React.ReactElement & {
+    props: {
+      onMouseEnter?: (e: React.MouseEvent) => void;
+      onMouseLeave?: (e: React.MouseEvent) => void;
+      onFocus?: (e: React.FocusEvent) => void;
+      onBlur?: (e: React.FocusEvent) => void;
     }
-  })
+  };
+  
+  const childElement = children as ElementWithHandlers;
+  
+  // Create props based on type of child element
+  const newProps: Record<string, unknown> = {};
+  
+  newProps.onMouseEnter = (e: React.MouseEvent) => {
+    tooltipHandlers.onMouseEnter(e, text);
+    if (childElement.props.onMouseEnter) childElement.props.onMouseEnter(e);
+  };
+  
+  newProps.onMouseLeave = (e: React.MouseEvent) => {
+    tooltipHandlers.onMouseLeave();
+    if (childElement.props.onMouseLeave) childElement.props.onMouseLeave(e);
+  };
+  
+  newProps.onFocus = (e: React.FocusEvent) => {
+    tooltipHandlers.onFocus(e, text);
+    if (childElement.props.onFocus) childElement.props.onFocus(e);
+  };
+  
+  newProps.onBlur = (e: React.FocusEvent) => {
+    tooltipHandlers.onBlur();
+    if (childElement.props.onBlur) childElement.props.onBlur(e);
+  };
+  
+  const childWithTooltip = React.cloneElement(children, newProps as React.HTMLAttributes<HTMLElement>)
   
   return (
     <>
