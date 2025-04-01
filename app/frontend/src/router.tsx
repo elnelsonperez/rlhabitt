@@ -37,11 +37,13 @@ const layoutRoute = createRoute({
   },
 })
 
-// Home page (protected by layout)
+// Root route - redirects to reservations
 const homeRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: '/',
-  component: HomePage,
+  beforeLoad: () => {
+    throw redirect({ to: '/reservations' })
+  }
 })
 
 
@@ -81,7 +83,7 @@ const loginRoute = createRoute({
     // Only redirect if auth is fully loaded and user is authenticated
     const { isAuthenticated, isLoading } = useAuthStore.getState()
     if (isAuthenticated && !isLoading) {
-      throw redirect({ to: '/' })
+      throw redirect({ to: '/reservations' })
     }
   },
 })

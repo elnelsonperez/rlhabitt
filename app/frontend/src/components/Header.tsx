@@ -14,19 +14,12 @@ export function Header() {
           {user && (
             <nav className="flex space-x-4">
               <Link
-                to="/"
-                activeProps={{ className: 'font-bold text-white' }}
-                inactiveProps={{ className: 'text-gray-300 hover:text-white' }}
-              >
-                Dashboard
-              </Link>
-              <Link
                 to="/reservations"
                 search={{}}
                 activeProps={{ className: 'font-bold text-white' }}
                 inactiveProps={{ className: 'text-gray-300 hover:text-white' }}
               >
-                Reservations
+                Tabla de Reservas
               </Link>
             </nav>
           )}

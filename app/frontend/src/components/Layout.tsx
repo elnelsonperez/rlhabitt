@@ -1,9 +1,33 @@
 import { Outlet } from '@tanstack/react-router'
 import { Header } from './Header'
 import { useAuthStore } from '../store/auth'
+import { useEffect } from 'react'
+
+// Add global styles for fullscreen mode
+const fullscreenStyles = `
+  body.fullscreen-mode header {
+    display: none;
+  }
+  
+  body.fullscreen-mode main {
+    padding: 0 !important;
+  }
+`
 
 export function AppLayout() {
   const { isLoading } = useAuthStore()
+  
+  // Add the fullscreen style to the document head
+  useEffect(() => {
+    const styleTag = document.createElement('style')
+    styleTag.innerHTML = fullscreenStyles
+    document.head.appendChild(styleTag)
+    
+    return () => {
+      document.head.removeChild(styleTag)
+      document.body.classList.remove('fullscreen-mode')
+    }
+  }, [])
   
   if (isLoading) {
     return (

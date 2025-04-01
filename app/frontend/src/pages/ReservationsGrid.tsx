@@ -12,6 +12,14 @@ export function ReservationsGridPage() {
   const navigate = useNavigate({from: '/reservations'})
   const search = useSearch({from: '/layout/reservations'})
 
+  // State for full screen mode
+  const [isFullScreen, setIsFullScreen] = useState(false)
+  
+  // Toggle full screen mode
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen)
+  }
+
   // Initialize state from URL params or defaults
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(
     search.buildingId || ''
@@ -27,6 +35,13 @@ export function ReservationsGridPage() {
   
   // Fetch buildings for the dropdown
   const { data: buildings, isLoading: isLoadingBuildings } = useBuildings()
+  
+  // Select first building by default when buildings load and none is already selected
+  useEffect(() => {
+    if (buildings?.length && !selectedBuildingId && !search.buildingId) {
+      setSelectedBuildingId(buildings[0].id)
+    }
+  }, [buildings, selectedBuildingId, search.buildingId])
   
   // Fetch reservations for the selected building and month
   const { 
@@ -71,17 +86,49 @@ export function ReservationsGridPage() {
     return date.toISOString().split('T')[0]
   }
   
+  // Effect to add/remove full-screen class to body
+  useEffect(() => {
+    if (isFullScreen) {
+      document.body.classList.add('fullscreen-mode')
+    } else {
+      document.body.classList.remove('fullscreen-mode')
+    }
+    
+    return () => {
+      document.body.classList.remove('fullscreen-mode')
+    }
+  }, [isFullScreen])
+
   return (
-    <div className="container mx-auto p-4">
+    <div className={`${isFullScreen ? 'fixed inset-0 z-50 bg-white' : 'container mx-auto p-4'}`}>
       {/* Controls container - Time Period and Buildings side by side */}
-      <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-        {/* Time Period Controls */}
-        <TimeframeSelector
-          month={month}
-          year={year}
-          onMonthChange={setMonth}
-          onYearChange={setYear}
-        />
+      <div className={`flex flex-wrap justify-between items-center gap-4 ${isFullScreen ? 'p-3' : 'mb-4'}`}>
+        <div className="flex gap-2 items-center">
+          {/* Time Period Controls */}
+          <TimeframeSelector
+            month={month}
+            year={year}
+            onMonthChange={setMonth}
+            onYearChange={setYear}
+          />
+          
+          {/* Full Screen Toggle Button */}
+          <button
+            onClick={toggleFullScreen}
+            className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 focus:outline-none"
+            title={isFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
+          >
+            {isFullScreen ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+              </svg>
+            )}
+          </button>
+        </div>
         
         {/* Building selector - Cards */}
         <div className="flex flex-wrap gap-2">
@@ -132,7 +179,10 @@ export function ReservationsGridPage() {
       
       {/* Reservations grid */}
       {reservationsData && (
-        <div className="overflow-auto max-h-[75vh] border border-gray-200 rounded-lg" style={{ position: 'relative' }}>
+        <div 
+          className={`overflow-auto border border-gray-200 rounded-lg ${isFullScreen ? 'absolute inset-x-0 bottom-0 top-[60px]' : 'max-h-[75vh]'}`} 
+          style={{ position: 'relative', paddingBottom: '16px' }}
+        >
           <table className="min-w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
