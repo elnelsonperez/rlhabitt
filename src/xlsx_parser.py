@@ -9,6 +9,21 @@ from openpyxl.comments import Comment
 
 logger = logging.getLogger(__name__)
 
+
+# Color legend for the condo rental system
+# the first element is the color code, the second is the theme color index if applicable
+COLOR_LEGEND = {
+    ("#FF6B6B",5): "Pendiente de pago",
+    ("#FFC000",7): "Cliente Airbnb",
+    ("#2F75B5",4): "Larga estadia",
+    ("#2F75B5",8): "Larga estadia",
+    ("#F408FC",6): "Apto no disponible",
+    ("#00FFFF",): "Cliente referido",
+    ("#757171",0): "Mantenimiento",
+    ("#548235",9): "Booking",
+    ("#29E817",): "Cliente VRBO"
+}
+
 class CondoRentalParser:
     """
     Parser for condo rental Excel files with Spanish month abbreviation sheet names.
@@ -29,17 +44,6 @@ class CondoRentalParser:
         "Oct.": 10, # Octubre (October)
         "Nov.": 11, # Noviembre (November)
         "Dic.": 12  # Diciembre (December)
-    }
-    
-    # Spanish weekday abbreviations
-    SPANISH_WEEKDAYS = {
-        "S": "Sábado",
-        "D": "Domingo",
-        "L": "Lunes",
-        "M": "Martes",
-        "M": "Miércoles", # Note: Duplicate key, might need special handling
-        "J": "Jueves",
-        "V": "Viernes"
     }
     
     def __init__(self, file_path, verbose=False):
@@ -284,9 +288,7 @@ class CondoRentalParser:
                 
                 # Get the cell color (background color)
                 cell = sheet_with_comments.cell(row=row_num, column=col)
-                cell_color = None
-                if cell.fill.start_color.index != '00000000':  # Not the default "no fill"
-                    cell_color = cell.fill.start_color.index
+                cell_color = self._get_cell_color(cell)
                 
                 # Get the cell comment if any
                 comment_text = None
@@ -403,6 +405,130 @@ class CondoRentalParser:
         }
         
         return sheet_data
+    
+    def _get_cell_color(self, cell):
+        """
+        Extract standardized color information from a cell.
+        Uses the COLOR_LEGEND to convert theme colors to RGB where possible.
+        
+        Args:
+            cell: An openpyxl cell object
+            
+        Returns:
+            dict: Color information with type and value, or None if no fill
+        """
+        # Default to no color
+        if not cell or cell.fill.fill_type == 'none' or cell.fill.start_color.index == '00000000':
+            return None
+            
+        color_info = {
+            "type": "unknown",
+            "value": None
+        }
+        
+        try:
+            # Get the color index/value
+            color_index = cell.fill.start_color.index
+            
+            # Handle different color types
+            if isinstance(color_index, int):
+                # Theme color or indexed color
+                # Try to get RGB representation
+                rgb_found = False
+                try:
+                    rgb = cell.fill.start_color.rgb
+                    if rgb and isinstance(rgb, str):
+                        if rgb.startswith('FF'):
+                            rgb_hex = f"#{rgb[2:]}"  # Remove alpha
+                        else:
+                            rgb_hex = f"#{rgb}"
+                            
+                        # Check if this RGB value is in our COLOR_LEGEND
+                        legend_match = False
+                        for legend_key, legend_value in COLOR_LEGEND.items():
+                            if legend_key[0].upper() == rgb_hex.upper():
+                                # We found a match in the legend
+                                color_info["type"] = "rgb"
+                                color_info["value"] = rgb_hex
+                                color_info["meaning"] = legend_value
+                                legend_match = True
+                                rgb_found = True
+                                break
+                                
+                        if not legend_match:
+                            # No legend match but we still have the RGB
+                            color_info["type"] = "rgb"
+                            color_info["value"] = rgb_hex
+                            rgb_found = True
+                except:
+                    pass  # No RGB available
+                
+                # If we couldn't get RGB, check if the theme index is in our legend
+                if not rgb_found:
+                    for legend_key, legend_value in COLOR_LEGEND.items():
+                        if len(legend_key) > 1 and legend_key[1] == color_index:
+                            # Theme index matched in the legend
+                            color_info["type"] = "rgb"
+                            color_info["value"] = legend_key[0]
+                            color_info["meaning"] = legend_value
+                            rgb_found = True
+                            break
+                
+                # If we still don't have RGB, store as theme
+                if not rgb_found:
+                    color_info["type"] = "theme"
+                    color_info["value"] = color_index
+                    
+            elif isinstance(color_index, str):
+                if color_index.startswith('FF'):
+                    # Standard RGB color with alpha channel
+                    rgb_hex = f"#{color_index[2:]}"  # Remove alpha
+                    color_info["type"] = "rgb"
+                    color_info["value"] = rgb_hex
+                    
+                    # Check if this RGB value is in our COLOR_LEGEND
+                    for legend_key, legend_value in COLOR_LEGEND.items():
+                        if legend_key[0].upper() == rgb_hex.upper():
+                            color_info["meaning"] = legend_value
+                            break
+                else:
+                    # Other format (indexed, etc.)
+                    # Try to get RGB
+                    rgb_found = False
+                    try:
+                        rgb = cell.fill.start_color.rgb
+                        if rgb and isinstance(rgb, str):
+                            if rgb.startswith('FF'):
+                                rgb_hex = f"#{rgb[2:]}"
+                            else:
+                                rgb_hex = f"#{rgb}"
+                                
+                            # Check rgb against COLOR_LEGEND
+                            for legend_key, legend_value in COLOR_LEGEND.items():
+                                if legend_key[0].upper() == rgb_hex.upper():
+                                    color_info["type"] = "rgb"
+                                    color_info["value"] = rgb_hex
+                                    color_info["meaning"] = legend_value
+                                    rgb_found = True
+                                    break
+                                    
+                            if not rgb_found:
+                                color_info["type"] = "rgb"
+                                color_info["value"] = rgb_hex
+                                rgb_found = True
+                    except:
+                        pass
+                    
+                    # If we couldn't get RGB
+                    if not rgb_found:
+                        color_info["type"] = "other"
+                        color_info["value"] = color_index
+            
+            return color_info
+            
+        except Exception as e:
+            logger.debug(f"Error extracting cell color: {e}")
+            return None
     
     def _parse_cell_reference(self, cell_ref):
         """

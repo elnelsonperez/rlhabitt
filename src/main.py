@@ -8,7 +8,7 @@ def download_file(file_id, output_path=None, verbose=False):
     Args:
         file_id (str): The OneDrive file ID in the format 'driveId!itemId'
         output_path (str, optional): Path where the file should be saved.
-                                    If not provided, saves to current directory
+                                  If not provided, saves to current directory
                                   with the original filename.
         verbose (bool, optional): Enable verbose logging output. Default is False.
     
