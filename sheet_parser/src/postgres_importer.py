@@ -337,7 +337,7 @@ class PostgresImporter:
     def upsert_reservation(self, conn, booking_id: str, apartment_id: str, date_str: str,
                           rate: float, color_hex: Optional[str], comment: Optional[str]):
         """
-        Create or update a reservation using the upsert_reservation function.
+        Create or update a reservation using SQLAlchemy with manual existence check.
         
         Args:
             conn: Database connection
@@ -348,26 +348,43 @@ class PostgresImporter:
             color_hex: Color hex code (may be None)
             comment: Reservation comment (may be None)
         """
-        # Execute the upsert_reservation function
-        query = text("""
-            SELECT upsert_reservation(
-                :booking_id, 
-                :apartment_id, 
-                :date, 
-                :rate, 
-                :color_hex, 
-                :comment
-            )
-        """)
+        # First, check if the reservation exists using SQLAlchemy's select
+        query = select(self.reservations.c.id).where(
+            (self.reservations.c.apartment_id == apartment_id) &
+            (self.reservations.c.date == date_str)
+        )
         
-        conn.execute(query, {
-            "booking_id": booking_id,
-            "apartment_id": apartment_id,
-            "date": date_str,
-            "rate": rate,
-            "color_hex": color_hex,
-            "comment": comment
-        })
+        existing_reservation = conn.execute(query).first()
+        
+        if existing_reservation:
+            # If reservation exists, update it
+            update_stmt = (
+                update(self.reservations)
+                .where(
+                    (self.reservations.c.apartment_id == apartment_id) &
+                    (self.reservations.c.date == date_str)
+                )
+                .values(
+                    booking_id=booking_id,
+                    rate=rate,
+                    color_hex=color_hex,
+                    comment=comment,
+                    updated_at=text("NOW()")
+                )
+            )
+            conn.execute(update_stmt)
+        else:
+            # If reservation doesn't exist, insert a new one
+            values = {
+                "booking_id": booking_id,
+                "apartment_id": apartment_id,
+                "date": date_str,
+                "rate": rate,
+                "color_hex": color_hex,
+                "comment": comment
+            }
+            insert_stmt = insert(self.reservations).values(**values)
+            conn.execute(insert_stmt)
     
     def process_building(self, conn, building_data: Dict):
         """
