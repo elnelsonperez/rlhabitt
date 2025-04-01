@@ -138,7 +138,7 @@ export function useBuildings() {
       const { data, error } = await supabase
         .from('buildings')
         .select('id, name, description, location, active, created_at, updated_at')
-        .order('name', { ascending: true })
+        .order('name', { ascending: false })
         
       if (error) {
         throw error

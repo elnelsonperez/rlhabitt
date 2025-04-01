@@ -97,8 +97,7 @@ export function TimeframeSelector({ month, year, onMonthChange, onYearChange }: 
   const now = new Date();
   
   return (
-    <div className="flex flex-col items-center">
-      <h2 className="text-sm font-medium text-gray-700 mb-2">Período</h2>
+    <div>
       <div className="flex items-center border border-gray-300 rounded-md overflow-hidden shadow-sm">
         {/* Previous month button */}
         <button 

@@ -4,13 +4,14 @@ import { ReservationCell } from '../components/ReservationCell'
 import { TimeframeSelector } from '../components/TimeframeSelector'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 
+
+// Default to current month and year
+const now = new Date()
+
 export function ReservationsGridPage() {
   const navigate = useNavigate({from: '/reservations'})
   const search = useSearch({from: '/layout/reservations'})
-  
-  // Default to current month and year
-  const now = new Date()
-  
+
   // Initialize state from URL params or defaults
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(
     search.buildingId || ''
@@ -72,22 +73,20 @@ export function ReservationsGridPage() {
   
   return (
     <div className="container mx-auto p-4">
-      {/* Time Period Controls - Centered at the top */}
-      <div className="flex justify-center mb-6">
+      {/* Controls container - Time Period and Buildings side by side */}
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
+        {/* Time Period Controls */}
         <TimeframeSelector
           month={month}
           year={year}
           onMonthChange={setMonth}
           onYearChange={setYear}
         />
-      </div>
-      
-      {/* Building selector - Cards */}
-      <div className="mb-6">
-        <h2 className="text-sm font-medium text-gray-700 mb-2 text-center">Edificios</h2>
-        <div className="flex flex-wrap gap-2 justify-center">
+        
+        {/* Building selector - Cards */}
+        <div className="flex flex-wrap gap-2">
           {isLoadingBuildings ? (
-            <div className="w-full p-4 text-center text-gray-500">Cargando edificios...</div>
+            <div className="p-2 text-gray-500">Cargando edificios...</div>
           ) : (
             <>
               {/* Individual building cards */}
