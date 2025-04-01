@@ -3,6 +3,7 @@ import os
 import logging
 from datetime import datetime
 from flask import Flask, jsonify
+from flask_cors import CORS
 
 from dotenv import load_dotenv
 
@@ -19,6 +20,9 @@ logger = logging.getLogger(__name__)
 def create_app():
     """Create and configure the Flask app."""
     app = Flask(__name__)
+    
+    # Enable CORS for all routes
+    CORS(app)
     
     # Set config values from environment variables
     app.config["API_CACHE_DIR"] = os.getenv("API_CACHE_DIR", None)

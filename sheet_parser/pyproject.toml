@@ -17,6 +17,7 @@ gunicorn = "^21.2.0"
 supabase = "^2.15.0"
 sqlalchemy = "^2.0.40"
 psycopg2-binary = "^2.9.10"
+flask-cors = "^5.0.1"
 
 [build-system]
 requires = ["poetry-core"]

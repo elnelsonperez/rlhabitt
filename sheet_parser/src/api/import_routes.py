@@ -6,6 +6,7 @@ import uuid
 import threading
 from datetime import datetime
 from flask import Blueprint, jsonify, request
+from flask_cors import cross_origin
 
 from .auth import requires_auth
 from ..downloader import OneDriveDownloader
@@ -126,6 +127,7 @@ def run_import_job(correlation_id, file_path, months=2):
 
 @import_bp.route('', methods=['POST'])
 @requires_auth
+@cross_origin()
 def trigger_import():
     """
     API endpoint to trigger reservation data import.
@@ -211,6 +213,7 @@ def trigger_import():
 
 @import_bp.route('/<correlation_id>/status', methods=['GET'])
 @requires_auth
+@cross_origin()
 def get_import_status(correlation_id):
     """
     Get the status of an import job by its correlation_id.

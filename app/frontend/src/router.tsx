@@ -5,10 +5,10 @@ import {
   createRouter,
   redirect
 } from '@tanstack/react-router'
-import { HomePage } from './pages/Home'
 import { LoginPage } from './pages/Login'
 import { ReservationsGridPage } from './pages/ReservationsGrid'
 import { ReservationDetailPage } from './pages/ReservationDetail'
+import { ImportPage } from './pages/Import'
 import { useAuthStore } from './store/auth'
 import { AppLayout } from './components/Layout'
 
@@ -74,6 +74,13 @@ const reservationDetailRoute = createRoute({
   component: ReservationDetailPage,
 })
 
+// Import page (protected by layout)
+const importRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/import',
+  component: ImportPage,
+})
+
 // Login page
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -94,6 +101,7 @@ const routeTree = rootRoute.addChildren([
     homeRoute,
     reservationsGridRoute,
     reservationDetailRoute,
+    importRoute,
   ]),
   loginRoute,
 ])

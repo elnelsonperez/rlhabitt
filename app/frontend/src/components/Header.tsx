@@ -21,6 +21,13 @@ export function Header() {
               >
                 Tabla de Reservas
               </Link>
+              <Link
+                to="/import"
+                activeProps={{ className: 'font-bold text-white' }}
+                inactiveProps={{ className: 'text-gray-300 hover:text-white' }}
+              >
+                Importar Datos
+              </Link>
             </nav>
           )}
         </div>

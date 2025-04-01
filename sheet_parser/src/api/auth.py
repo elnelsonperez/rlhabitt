@@ -1,32 +1,116 @@
-"""Basic authentication for the API."""
+"""Authentication for the API using Supabase."""
 import os
 import functools
-from flask import request, Response, current_app
+import logging
+from flask import request, Response, jsonify
 from dotenv import load_dotenv
+from supabase import create_client, Client
 
 # Load environment variables
 load_dotenv()
 
-def check_auth(username, password):
-    """Check if the username and password are correct."""
-    api_username = os.getenv("API_USERNAME", "admin")
-    api_password = os.getenv("API_PASSWORD", "password")
-    return username == api_username and password == api_password
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Get Supabase credentials from environment variables
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")  # Service role key for admin operations
+
+# Fallback to basic auth if Supabase settings are not available
+USE_BASIC_AUTH = not (SUPABASE_URL and SUPABASE_KEY)
+API_USERNAME = os.getenv("API_USERNAME", "admin")
+API_PASSWORD = os.getenv("API_PASSWORD", "password")
+
+# Initialize Supabase client if settings are available
+supabase: Client = None
+if not USE_BASIC_AUTH:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        logger.info("Supabase client initialized for authentication")
+    except Exception as e:
+        logger.error(f"Failed to initialize Supabase client: {e}")
+        USE_BASIC_AUTH = True
+
+if USE_BASIC_AUTH:
+    logger.warning("Supabase authentication is disabled. Using basic auth instead.")
+
+def get_token_auth_header():
+    """Get the access token from the Authorization header."""
+    auth = request.headers.get("Authorization", None)
+    if not auth:
+        raise Exception("Authorization header is missing")
+    
+    parts = auth.split()
+    
+    if parts[0].lower() != "bearer":
+        raise Exception("Authorization header must start with Bearer")
+    
+    if len(parts) == 1:
+        raise Exception("Token not found")
+    
+    if len(parts) > 2:
+        raise Exception("Authorization header must be Bearer token")
+    
+    token = parts[1]
+    return token
+
+def verify_supabase_token(token):
+    """Verify a Supabase JWT token using the Supabase client."""
+    try:
+        # Verify token by getting user information
+        response = supabase.auth.get_user(token)
+        return response.user
+    except Exception as e:
+        logger.error(f"Failed to verify token: {e}")
+        raise Exception(f"Invalid token: {str(e)}")
+
+def check_basic_auth(username, password):
+    """Check if the username and password are correct for basic auth."""
+    return username == API_USERNAME and password == API_PASSWORD
 
 def authenticate():
-    """Send a 401 response that enables basic auth."""
-    return Response(
-        'Authentication required',
-        401,
-        {'WWW-Authenticate': 'Basic realm="Login Required"'}
-    )
+    """Send a 401 response that enables auth."""
+    if USE_BASIC_AUTH:
+        return Response(
+            'Authentication required',
+            401,
+            {'WWW-Authenticate': 'Basic realm="Login Required"'}
+        )
+    else:
+        return jsonify({
+            "error": "Authentication required",
+            "message": "Valid Supabase authentication token is required"
+        }), 401
 
 def requires_auth(f):
-    """Decorator to require HTTP Basic Authentication."""
+    """Decorator to require authentication."""
     @functools.wraps(f)
     def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
-            return authenticate()
-        return f(*args, **kwargs)
+        # Skip authentication for OPTIONS requests for CORS
+        if request.method == 'OPTIONS':
+            return f(*args, **kwargs)
+            
+        try:
+            if USE_BASIC_AUTH:
+                # Use basic auth
+                auth = request.authorization
+                if not auth or not check_basic_auth(auth.username, auth.password):
+                    return authenticate()
+            else:
+                # Use Supabase token validation
+                token = get_token_auth_header()
+                user = verify_supabase_token(token)
+                
+                # Add user info to request context
+                request.user = user
+            
+            return f(*args, **kwargs)
+        
+        except Exception as e:
+            logger.error(f"Authentication error: {str(e)}")
+            return jsonify({
+                "error": "Authentication failed", 
+                "message": str(e)
+            }), 401
+    
     return decorated
