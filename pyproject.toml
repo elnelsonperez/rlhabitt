@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "rlhabitt_backend"
 version = "0.1.0"
-description = "Download shared files from OneDrive using device-based authentication"
+description = "Download and parse condo rental Excel sheets from OneDrive"
 authors = ["User"]
 readme = "README.md"
 packages = [{include = "src"}]
@@ -18,4 +18,4 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-onedrive-download = "src.__main__:main"
+rlhabitt = "src.__main__:main"
