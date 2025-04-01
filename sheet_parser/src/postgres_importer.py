@@ -2,7 +2,7 @@ import os
 import json
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Optional, Union
 
 # SQLAlchemy imports
@@ -297,8 +297,8 @@ class PostgresImporter:
         return None
     
     def create_booking(self, conn, apartment_id: str, guest_id: Optional[str], 
-                      reservation_date: str, rate: float, cleaning_fee: float, 
-                      payment_source_id: Optional[str], comment: Optional[str]) -> str:
+                      reservation_date: str, rate: float,
+                      payment_source_id: Optional[str]) -> str:
         """
         Create a new booking.
         
@@ -308,28 +308,19 @@ class PostgresImporter:
             guest_id: Guest UUID (may be None)
             reservation_date: Reservation date in ISO format
             rate: Nightly rate
-            cleaning_fee: Cleaning fee
             payment_source_id: Payment source UUID (may be None)
-            comment: Booking notes
             
         Returns:
             str: Created booking UUID
         """
-        # Parse date
-        date_obj = datetime.fromisoformat(reservation_date).date()
-        check_out = date_obj.replace(day=date_obj.day + 1).isoformat()
-        
+
+        # Only set check_in date, the rest will be NULL
+        # In the future, we'll parse check_out and nights from comments
         booking_id = str(uuid.uuid4())
         values = {
             'id': booking_id,
             'apartment_id': apartment_id,
-            'check_in': reservation_date,
-            'check_out': check_out,
-            'nights': 1,
-            'nightly_rate': rate,
-            'cleaning_fee': cleaning_fee,
-            'total_amount': rate + cleaning_fee,
-            'notes': comment
+            'check_in': reservation_date
         }
         
         if guest_id:
@@ -530,9 +521,7 @@ class PostgresImporter:
                 guest_id=guest_id,
                 reservation_date=date_str,
                 rate=rate,
-                cleaning_fee=35.00,  # Default cleaning fee
-                payment_source_id=payment_source_id,
-                comment=comment
+                payment_source_id=payment_source_id
             )
             
         # Create or update the reservation
