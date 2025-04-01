@@ -50,7 +50,7 @@ def download_onedrive_file(file_id, output_path=None, verbose=False):
         logger.error(f"Error downloading file: {e}")
         raise
 
-def parse_excel_file(excel_path, sheet_name=None, verbose=False):
+def parse_excel_file(excel_path, sheet_name=None, parse_all=False, verbose=False):
     """Parse the Excel file and return the data"""
     logger.info(f"Parsing Excel file: {excel_path}")
     try:
@@ -66,35 +66,73 @@ def parse_excel_file(excel_path, sheet_name=None, verbose=False):
         if not sheet_names:
             raise Exception("No sheets found in the workbook")
         
-        # If no sheet_name provided, find the first sheet with a valid month abbreviation
-        if not sheet_name:
-            # Try to find a sheet with a valid month abbreviation
-            valid_sheet = None
+        # If parse_all flag is set, process all sheets with valid month names
+        if parse_all:
+            logger.info("Processing all sheets with valid month names")
+            valid_sheets = []
             for s in sheet_names:
-                # Check if the sheet name matches the [Month]. [Year] pattern
                 month_num, year = parser.parse_sheet_date(s)
                 if month_num is not None and year is not None:
-                    valid_sheet = s
-                    break
+                    valid_sheets.append(s)
             
-            if valid_sheet:
-                sheet_name = valid_sheet
-                logger.info(f"No sheet specified, using first valid month sheet: {sheet_name}")
-            else:
-                # Fallback to the first sheet if no valid month sheet found
-                sheet_name = sheet_names[0]
-                logger.warning(f"No valid month sheet found, using first sheet: {sheet_name}")
-        elif sheet_name not in sheet_names:
-            available_sheets = ", ".join(sheet_names)
-            raise Exception(f"Sheet '{sheet_name}' not found. Available sheets: {available_sheets}")
+            if not valid_sheets:
+                raise Exception("No sheets found with valid month names")
+            
+            logger.info(f"Found {len(valid_sheets)} sheets with valid month names: {', '.join(valid_sheets)}")
+            
+            # Parse all valid sheets
+            combined_data = {
+                "sheets": []
+            }
+            
+            for valid_sheet in valid_sheets:
+                logger.info(f"Parsing sheet: {valid_sheet}")
+                sheet_data = parser.parse_sheet(valid_sheet)
+                if sheet_data:
+                    combined_data["sheets"].append({
+                        "name": valid_sheet,
+                        "data": sheet_data
+                    })
+                else:
+                    logger.warning(f"Failed to parse sheet: {valid_sheet}")
+            
+            if not combined_data["sheets"]:
+                raise Exception("Failed to parse any sheets")
+            
+            return combined_data
         
-        # Parse the sheet
-        logger.info(f"Parsing sheet: {sheet_name}")
-        data = parser.parse_sheet(sheet_name)
-        if not data:
-            raise Exception(f"Failed to parse sheet: {sheet_name}")
-        
-        return data
+        # Process a single sheet
+        else:
+            # If no sheet_name provided, find the first sheet with a valid month abbreviation
+            if not sheet_name:
+                # Try to find a sheet with a valid month abbreviation
+                valid_sheet = None
+                for s in sheet_names:
+                    # Check if the sheet name matches the [Month]. [Year] pattern
+                    month_num, year = parser.parse_sheet_date(s)
+                    if month_num is not None and year is not None:
+                        valid_sheet = s
+                        break
+                
+                if valid_sheet:
+                    sheet_name = valid_sheet
+                    logger.info(f"No sheet specified, using first valid month sheet: {sheet_name}")
+                else:
+                    # Fallback to the first sheet if no valid month sheet found
+                    sheet_name = sheet_names[0]
+                    logger.warning(f"No valid month sheet found, using first sheet: {sheet_name}")
+            elif sheet_name not in sheet_names:
+                available_sheets = ", ".join(sheet_names)
+                raise Exception(f"Sheet '{sheet_name}' not found. Available sheets: {available_sheets}")
+            
+            # Parse the sheet
+            logger.info(f"Parsing sheet: {sheet_name}")
+            data = parser.parse_sheet(sheet_name)
+            if not data:
+                raise Exception(f"Failed to parse sheet: {sheet_name}")
+            
+            return data
+            
     except Exception as e:
         logger.error(f"Error parsing Excel file: {e}")
         raise
@@ -133,7 +171,12 @@ def main():
     # Optional arguments
     parser.add_argument(
         "-s", "--sheet", 
-        help="Name of the sheet to parse (default: first sheet)"
+        help="Name of the sheet to parse (default: first sheet with valid month name)"
+    )
+    parser.add_argument(
+        "-a", "--all",
+        action="store_true",
+        help="Process all sheets with valid month names instead of just one"
     )
     parser.add_argument(
         "-o", "--output", 
@@ -177,6 +220,9 @@ def main():
         # Validate options
         if args.download_only and args.parse_only:
             raise ValueError("Cannot use both --download-only and --parse-only together")
+            
+        if args.sheet and args.all:
+            raise ValueError("Cannot use both --sheet and --all together")
         
         # Parse only mode - skip download
         if args.parse_only:
@@ -195,7 +241,7 @@ def main():
             return 0
         
         # Parse the Excel file
-        data = parse_excel_file(excel_path, args.sheet, args.verbose)
+        data = parse_excel_file(excel_path, args.sheet, args.all, args.verbose)
         
         # Save the JSON data
         save_json_data(data, args.output, args.pretty)

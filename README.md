@@ -46,6 +46,9 @@ rlhabitt "2124047165A6F26!493036" -o reservations.json --pretty
 # Specify a specific sheet to parse
 rlhabitt "2124047165A6F26!493036" -s "Feb. 2025" -o reservations.json
 
+# Process all sheets with valid month names
+rlhabitt "2124047165A6F26!493036" --all -o all_months.json --pretty
+
 # Save the Excel file and parse it
 rlhabitt "2124047165A6F26!493036" --excel-output rental_data.xlsx -o reservations.json
 
@@ -116,6 +119,7 @@ The Excel parser can extract rental data from condo management spreadsheets with
 
 - Sheet names follow the format "[Month]. [Year]" (e.g., "Abr. 2025")
 - The tool automatically finds the first sheet with a valid month name if none is specified
+- With the `--all` option, it processes all sheets with valid month names at once
 - Calendar headers in rows 4-5, with Spanish weekday abbreviations and dates
 - Multiple building tables with apartment information and reservation data
 - Each cell can contain rental rates and comments with additional metadata
