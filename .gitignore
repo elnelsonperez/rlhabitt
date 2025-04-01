@@ -59,8 +59,11 @@ Thumbs.db
 *.xls
 *.csv
 
-# Output files
+# Output files - excluding configuration files
 *.json
+!tsconfig*.json
+!package.json
+!package-lock.json
 
 # Logs
 *.log
