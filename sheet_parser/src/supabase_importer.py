@@ -128,11 +128,7 @@ class SupabaseImporter:
         """
         # Try to find existing apartment
         query = self.supabase.table("apartments").select("id").eq("building_id", building_id)
-        
-        if code:
-            query = query.eq("code", code)
-        else:
-            query = query.eq("raw_text", raw_text)
+        query = query.eq("raw_text", raw_text)
             
         result = query.execute()
         
