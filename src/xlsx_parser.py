@@ -46,6 +46,11 @@ class CondoRentalParser:
         "Dic.": 12  # Diciembre (December)
     }
     
+    # Buildings to exclude from parsing
+    EXCLUDED_BUILDINGS = [
+        "LIMPIEZAS EXTERNAS"
+    ]
+    
     def __init__(self, file_path, verbose=False):
         """
         Initialize the parser with a file path.
@@ -206,6 +211,13 @@ class CondoRentalParser:
         building_name = sheet.cell(row=building_start_row, column=2).value
         logger.debug(f"Parsing building table: {building_name}")
         
+        # Skip excluded buildings
+        if building_name:
+            for excluded_building in self.EXCLUDED_BUILDINGS:
+                if excluded_building in str(building_name):
+                    logger.info(f"Skipping excluded building '{building_name}' at row {building_start_row}")
+                    return {}
+        
         # Get the number of apartments from A[building_start_row]
         num_apartments_str = sheet.cell(row=building_start_row, column=1).value
         try:
@@ -264,14 +276,29 @@ class CondoRentalParser:
                 continue
                 
             # Parse apartment code and owner name
-            # Expected format: "APT - OWNER NAME"
-            apt_parts = apt_info.split(' - ', 1)
-            if len(apt_parts) < 2:
-                apt_code = apt_info
-                owner_name = ""
+            # Special handling for "OTROS APARTAMENTOS" building
+            if building_name and "OTROS APARTAMENTOS" in str(building_name):
+                # For "OTROS APARTAMENTOS", the owner is the entire text and code is None
+                apt_code = None
+                owner_name = apt_info
+                logger.debug(f"OTROS APARTAMENTOS entry: owner='{owner_name}'")
             else:
-                apt_code = apt_parts[0]
-                owner_name = apt_parts[1]
+                # Standard format: "APT CODE - OWNER NAME" or similar
+                # The owner name is the last part after the last hyphen
+                # The apartment code is everything before the last hyphen
+                if '-' in apt_info:
+                    # Find the last occurrence of "-"
+                    last_separator = apt_info.rfind('-')
+                    
+                    # Split based on the last separator
+                    apt_code = apt_info[:last_separator].strip()
+                    owner_name = apt_info[last_separator+1:].strip()  # +1 to skip the "-"
+                else:
+                    # No separator found, use the whole string as apt_code
+                    apt_code = apt_info
+                    owner_name = ""
+                
+                logger.debug(f"Parsed apartment: code='{apt_code}', owner='{owner_name}'")
                 
             # Process reservations for this apartment (columns C through AD)
             reservations = []
@@ -309,6 +336,7 @@ class CondoRentalParser:
             apartment = {
                 "code": apt_code,
                 "owner": owner_name,
+                "raw_text": apt_info,  # Include the raw cell text
                 "reservations": reservations
             }
             
