@@ -1,15 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useBuildings, useReservations } from '../hooks/queries/useReservations'
 import { ReservationCell } from '../components/ReservationCell'
+import { TimeframeSelector } from '../components/TimeframeSelector'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 
 export function ReservationsGridPage() {
-  // State for selected building and month/year
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string>('')
+  const navigate = useNavigate({from: '/reservations'})
+  const search = useSearch({from: '/layout/reservations'})
   
   // Default to current month and year
   const now = new Date()
-  const [year, setYear] = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth() + 1) // JavaScript months are 0-indexed
+  
+  // Initialize state from URL params or defaults
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string>(
+    search.buildingId || ''
+  )
+  
+  const [year, setYear] = useState<number>(
+    search.year ? parseInt(search.year) : now.getFullYear()
+  )
+  
+  const [month, setMonth] = useState<number>(
+    search.month ? parseInt(search.month) : now.getMonth() + 1
+  )
   
   // Fetch buildings for the dropdown
   const { data: buildings, isLoading: isLoadingBuildings } = useBuildings()
@@ -21,19 +34,21 @@ export function ReservationsGridPage() {
     error 
   } = useReservations(selectedBuildingId, year, month)
   
+  // Update URL when parameters change
+  useEffect(() => {
+    navigate({
+      search: {
+        buildingId: selectedBuildingId || undefined,
+        year: year.toString(),
+        month: month.toString(),
+      },
+      replace: true
+    });
+  }, [selectedBuildingId, year, month, navigate]);
+  
   // Handle building selection
-  const handleBuildingChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedBuildingId(e.target.value)
-  }
-  
-  // Handle month change
-  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setMonth(parseInt(e.target.value))
-  }
-  
-  // Handle year change
-  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setYear(parseInt(e.target.value))
+  const handleBuildingChange = (buildingId: string) => {
+    setSelectedBuildingId(buildingId)
   }
   
   // Generate array of dates for the selected month/year
@@ -57,70 +72,41 @@ export function ReservationsGridPage() {
   
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">Cuadrícula de Reservaciones</h1>
+      {/* Time Period Controls - Centered at the top */}
+      <div className="flex justify-center mb-6">
+        <TimeframeSelector
+          month={month}
+          year={year}
+          onMonthChange={setMonth}
+          onYearChange={setYear}
+        />
+      </div>
       
-      <div className="flex flex-wrap gap-4 mb-6">
-        {/* Building selector */}
-        <div className="w-full md:w-1/3">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Edificio
-          </label>
-          <select
-            value={selectedBuildingId}
-            onChange={handleBuildingChange}
-            className="w-full p-2 border border-gray-300 rounded-md"
-            disabled={isLoadingBuildings}
-          >
-            <option value="">Seleccionar un edificio</option>
-            {buildings?.map(building => (
-              <option key={building.id} value={building.id}>
-                {building.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        {/* Month selector */}
-        <div className="w-full md:w-1/4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Mes
-          </label>
-          <select
-            value={month}
-            onChange={handleMonthChange}
-            className="w-full p-2 border border-gray-300 rounded-md"
-          >
-            <option value={1}>Enero</option>
-            <option value={2}>Febrero</option>
-            <option value={3}>Marzo</option>
-            <option value={4}>Abril</option>
-            <option value={5}>Mayo</option>
-            <option value={6}>Junio</option>
-            <option value={7}>Julio</option>
-            <option value={8}>Agosto</option>
-            <option value={9}>Septiembre</option>
-            <option value={10}>Octubre</option>
-            <option value={11}>Noviembre</option>
-            <option value={12}>Diciembre</option>
-          </select>
-        </div>
-        
-        {/* Year selector */}
-        <div className="w-full md:w-1/4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Año
-          </label>
-          <select
-            value={year}
-            onChange={handleYearChange}
-            className="w-full p-2 border border-gray-300 rounded-md"
-          >
-            {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map(y => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+      {/* Building selector - Cards */}
+      <div className="mb-6">
+        <h2 className="text-sm font-medium text-gray-700 mb-2 text-center">Edificios</h2>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {isLoadingBuildings ? (
+            <div className="w-full p-4 text-center text-gray-500">Cargando edificios...</div>
+          ) : (
+            <>
+              {/* Individual building cards */}
+              {buildings?.map(building => (
+                <button
+                  key={building.id}
+                  onClick={() => handleBuildingChange(building.id)}
+                  className={`
+                    px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                    ${selectedBuildingId === building.id 
+                      ? 'bg-blue-100 text-blue-800 border border-blue-300' 
+                      : 'bg-gray-100 text-gray-800 border border-gray-200 hover:bg-gray-200'}
+                  `}
+                >
+                  <span>{building.name}</span>
+                </button>
+              ))}
+            </>
+          )}
         </div>
       </div>
       

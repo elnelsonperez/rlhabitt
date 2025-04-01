@@ -1,10 +1,11 @@
-import { useParams, Link } from '@tanstack/react-router'
+import {useParams, Link, useSearch} from '@tanstack/react-router'
 import { useReservationDetail } from '../hooks/queries/useReservationDetail'
 
 export function ReservationDetailPage() {
   const { reservationId } = useParams({ from: '/layout/reservations/$reservationId' })
   const { data, isLoading, error } = useReservationDetail(reservationId)
-  
+  const search = useSearch({from: '/layout/reservations'})
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-4">
@@ -42,7 +43,11 @@ export function ReservationDetailPage() {
   return (
     <div className="container mx-auto p-4">
       <div className="mb-6">
-        <Link to="/reservations" className="text-blue-500 hover:underline">
+        <Link to="/reservations" search={{
+            buildingId: search.buildingId,
+            year: search.year,
+            month: search.month
+        }} className="text-blue-500 hover:underline">
           &larr; Volver a Reservaciones
         </Link>
       </div>

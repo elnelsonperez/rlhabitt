@@ -22,6 +22,7 @@ export function Header() {
               </Link>
               <Link
                 to="/reservations"
+                search={{}}
                 activeProps={{ className: 'font-bold text-white' }}
                 inactiveProps={{ className: 'text-gray-300 hover:text-white' }}
               >

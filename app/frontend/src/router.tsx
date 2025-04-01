@@ -44,11 +44,25 @@ const homeRoute = createRoute({
   component: HomePage,
 })
 
+
+interface ReservationsSearch {
+  buildingId?: string;
+  year?: string;
+  month?: string;
+}
+
 // Reservations grid page (protected by layout)
 const reservationsGridRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: '/reservations',
   component: ReservationsGridPage,
+  validateSearch: (search: Record<string, unknown>): ReservationsSearch => {
+    return {
+      buildingId: search.buildingId as string | undefined,
+      year: search.year as string | undefined,
+      month: search.month as string | undefined
+    }
+  }
 })
 
 // Reservation detail page (protected by layout)

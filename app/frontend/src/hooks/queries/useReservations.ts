@@ -6,9 +6,15 @@ import { Database } from '../../lib/supabase/database.types'
 // Define types using the generated Database types
 export type Owner = Database['public']['Tables']['owners']['Row']
 
+// Type for the owner reference in join query
+export type OwnerRef = {
+  id: string;
+  name: string;
+}
+
 // Extend Apartment type to include the owner
 export type Apartment = Database['public']['Tables']['apartments']['Row'] & {
-  owners?: Owner | null
+  owners?: OwnerRef | null
 }
 
 export type Reservation = Database['public']['Tables']['reservations']['Row']
