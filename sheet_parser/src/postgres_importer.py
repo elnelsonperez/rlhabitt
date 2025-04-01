@@ -89,8 +89,8 @@ class PostgresImporter:
         
         Args:
             import_id: The UUID of the import log
-            status: New status ('completed' or 'failed')
-            error_message: Optional error message if status is 'failed'
+            status: New status ('completed', 'partial', or 'failed')
+            error_message: Optional error message if status is 'failed' or 'partial'
         """
         values = {'status': status}
         if error_message:
@@ -268,28 +268,29 @@ class PostgresImporter:
         
         return None
     
-    def get_existing_booking(self, conn, apartment_id: str, date_str: str) -> Optional[str]:
+    def get_existing_booking_by_comment(self, conn, apartment_id: str, comment: Optional[str]) -> Optional[str]:
         """
-        Check if there's an existing booking for a specific apartment and date.
+        Check if there's an existing booking for a specific apartment and comment.
+        Reservations with the same comment are considered part of the same booking.
         
         Args:
             conn: Database connection
             apartment_id: Apartment UUID
-            date_str: Date string in ISO format
+            comment: Reservation comment
             
         Returns:
             str: Booking UUID or None if not found
         """
-        # Execute a join query to find the booking ID
-        query = text("""
-            SELECT r.booking_id
-            FROM reservations r
-            WHERE r.apartment_id = :apartment_id 
-            AND r.date = :date
-            LIMIT 1
-        """)
+        if not comment:
+            return None
         
-        result = conn.execute(query, {"apartment_id": apartment_id, "date": date_str}).first()
+        # Execute a query to find a booking ID by comment
+        query = select(self.reservations.c.booking_id).where(
+            (self.reservations.c.apartment_id == apartment_id) &
+            (self.reservations.c.comment == comment)
+        ).limit(1)
+        
+        result = conn.execute(query).first()
         
         if result:
             return str(result[0])
@@ -297,31 +298,46 @@ class PostgresImporter:
         return None
     
     def create_booking(self, conn, apartment_id: str, guest_id: Optional[str], 
-                      reservation_date: str, rate: float,
-                      payment_source_id: Optional[str]) -> str:
+                      check_in_date: str, check_out_date: Optional[str] = None,
+                      rate: float = 0.0, payment_source_id: Optional[str] = None) -> str:
         """
-        Create a new booking.
+        Create a new booking with check_in and optional check_out dates.
         
         Args:
             conn: Database connection
             apartment_id: Apartment UUID
             guest_id: Guest UUID (may be None)
-            reservation_date: Reservation date in ISO format
-            rate: Nightly rate
+            check_in_date: Check-in date in ISO format
+            check_out_date: Check-out date in ISO format (may be None)
+            rate: Nightly rate (default 0.0)
             payment_source_id: Payment source UUID (may be None)
             
         Returns:
             str: Created booking UUID
         """
-
-        # Only set check_in date, the rest will be NULL
-        # In the future, we'll parse check_out and nights from comments
         booking_id = str(uuid.uuid4())
         values = {
             'id': booking_id,
             'apartment_id': apartment_id,
-            'check_in': reservation_date
+            'check_in': check_in_date
         }
+        
+        # If check_out date is provided, calculate nights and add to values
+        if check_out_date:
+            values['check_out'] = check_out_date
+            
+            # Try to calculate nights if dates are valid
+            try:
+                check_in = datetime.fromisoformat(check_in_date)
+                check_out = datetime.fromisoformat(check_out_date)
+                nights = (check_out - check_in).days
+                
+                if nights > 0:
+                    values['nights'] = nights
+                    values['total_amount'] = rate * nights
+            except (ValueError, TypeError):
+                # If date parsing fails, leave nights and total_amount as NULL
+                pass
         
         if guest_id:
             values['guest_id'] = guest_id
@@ -411,16 +427,17 @@ class PostgresImporter:
             apt_code = apartment_data.get("code")
             apt_raw = apartment_data.get("raw_text")
             logger.debug(f"Processing apartment {apt_idx}/{apartment_count}: {apt_code or apt_raw}")
-            self.process_apartment(conn, building_id, apartment_data)
+            self.process_apartment(conn, building_id, apartment_data, building_data)
             
-    def process_apartment(self, conn, building_id: str, apartment_data: Dict):
+    def process_apartment(self, conn, building_id: str, apartment_data: Dict, building_data: Dict = None):
         """
-        Process an apartment's data.
+        Process an apartment's data and group reservations into bookings based on comments.
         
         Args:
             conn: Database connection
             building_id: Building UUID
             apartment_data: Apartment data dictionary
+            building_data: Building data dictionary (for collecting related reservations)
         """
         apt_code = apartment_data.get("code")
         raw_text = apartment_data.get("raw_text")
@@ -436,14 +453,144 @@ class PostgresImporter:
         # Get or create the apartment
         apartment_id = self.get_or_create_apartment(conn, building_id, apt_code, raw_text, owner_id)
         
-        # Process each reservation
-        reservation_count = len(apartment_data.get("reservations", []))
-        logger.debug(f"Apartment '{raw_text}' has {reservation_count} reservations")
+        # Group reservations by comment to identify multi-day bookings
+        reservations_by_comment = {}
+        for reservation in apartment_data.get("reservations", []):
+            comment = reservation.get("comment")
+            date_str = reservation.get("date")
+            
+            if not date_str:
+                continue
+                
+            if comment not in reservations_by_comment:
+                reservations_by_comment[comment] = []
+                
+            reservations_by_comment[comment].append({
+                "date": date_str,
+                "data": reservation
+            })
         
-        for res_idx, reservation_data in enumerate(apartment_data.get("reservations", []), 1):
-            res_date = reservation_data.get("date", "unknown date")
-            logger.debug(f"Processing reservation {res_idx}/{reservation_count}: {res_date}")
-            self.process_reservation(conn, apartment_id, reservation_data)
+        # Sort each group's reservations by date
+        for comment, reservations in reservations_by_comment.items():
+            sorted_reservations = sorted(reservations, key=lambda x: x["date"])
+            
+            # Only process if we have valid reservations
+            if not sorted_reservations:
+                continue
+                
+            # Get first and last reservation date for check-in and check-out
+            first_reservation = sorted_reservations[0]
+            last_reservation = sorted_reservations[-1]
+            
+            check_in_date = first_reservation["date"]
+            check_out_date = None
+            
+            # For check-out, we use the day after the last reservation
+            try:
+                from datetime import timedelta
+                last_date = datetime.fromisoformat(last_reservation["date"])
+                check_out_date = (last_date + timedelta(days=1)).isoformat().split('T')[0]
+            except (ValueError, TypeError, AttributeError):
+                # If there's an error parsing the date, leave check_out_date as None
+                pass
+                
+            # Process first reservation to create/get booking
+            first_reservation_data = first_reservation["data"]
+            rate_str = first_reservation_data.get("rate")
+            
+            # Handle rate parsing safely to avoid numeric conversion errors
+            try:
+                rate = float(rate_str) if rate_str and rate_str != "False" and rate_str.strip() else 0.0
+            except (ValueError, TypeError):
+                rate = 0.0
+                
+            # Parse guest name from comment
+            guest_name = self.parse_guest_name(comment)
+            guest_id = self.get_or_create_guest(conn, guest_name) if guest_name else None
+            
+            # Detect payment source
+            payment_source_id = self.detect_payment_source(conn, comment)
+            
+            # Check for existing booking by comment
+            existing_booking_id = self.get_existing_booking_by_comment(conn, apartment_id, comment)
+            
+            if existing_booking_id:
+                booking_id = existing_booking_id
+                
+                # Update booking dates if needed (may have changed)
+                update_stmt = (
+                    update(self.bookings)
+                    .where(self.bookings.c.id == booking_id)
+                    .values(check_in=check_in_date)
+                )
+                
+                if check_out_date:
+                    # Calculate nights
+                    try:
+                        check_in = datetime.fromisoformat(check_in_date)
+                        check_out = datetime.fromisoformat(check_out_date)
+                        nights = (check_out - check_in).days
+                        
+                        if nights > 0:
+                            update_stmt = (
+                                update(self.bookings)
+                                .where(self.bookings.c.id == booking_id)
+                                .values(
+                                    check_in=check_in_date,
+                                    check_out=check_out_date,
+                                    nights=nights,
+                                    total_amount=rate * nights
+                                )
+                            )
+                    except (ValueError, TypeError):
+                        update_stmt = (
+                            update(self.bookings)
+                            .where(self.bookings.c.id == booking_id)
+                            .values(
+                                check_in=check_in_date,
+                                check_out=check_out_date
+                            )
+                        )
+                
+                conn.execute(update_stmt)
+            else:
+                # Create a new booking with correct dates
+                booking_id = self.create_booking(
+                    conn=conn,
+                    apartment_id=apartment_id,
+                    guest_id=guest_id,
+                    check_in_date=check_in_date,
+                    check_out_date=check_out_date,
+                    rate=rate,
+                    payment_source_id=payment_source_id
+                )
+            
+            # Process all reservations in the group
+            for reservation_info in sorted_reservations:
+                reservation_data = reservation_info["data"]
+                date_str = reservation_info["date"]
+                
+                rate_str = reservation_data.get("rate")
+                try:
+                    rate = float(rate_str) if rate_str and rate_str != "False" and rate_str.strip() else 0.0
+                except (ValueError, TypeError):
+                    rate = 0.0
+                
+                color_data = reservation_data.get("color")
+                color_hex = None
+                if color_data and isinstance(color_data, dict) and "value" in color_data:
+                    color_hex = color_data["value"]
+                
+                # Create or update the individual reservation
+                self.upsert_reservation(
+                    conn=conn,
+                    booking_id=booking_id,
+                    apartment_id=apartment_id,
+                    date_str=date_str,
+                    rate=rate,
+                    color_hex=color_hex,
+                    comment=comment
+                )
     
     def parse_guest_name(self, comment: Optional[str]) -> Optional[str]:
         """
@@ -496,6 +643,7 @@ class PostgresImporter:
             
         return None
     
+    
     def process_reservation(self, conn, apartment_id: str, reservation_data: Dict):
         """
         Process a reservation's data.
@@ -532,18 +680,18 @@ class PostgresImporter:
         # Detect payment source
         payment_source_id = self.detect_payment_source(conn, comment)
         
-        # Check for existing booking
-        existing_booking_id = self.get_existing_booking(conn, apartment_id, date_str)
+        # Check for existing booking by comment
+        existing_booking_id = self.get_existing_booking_by_comment(conn, apartment_id, comment)
         
         if existing_booking_id:
             booking_id = existing_booking_id
         else:
-            # Create a new booking (default 1-day stay)
+            # Create a new booking
             booking_id = self.create_booking(
                 conn=conn,
                 apartment_id=apartment_id,
                 guest_id=guest_id,
-                reservation_date=date_str,
+                check_in_date=date_str,  # We'll update this later if needed
                 rate=rate,
                 payment_source_id=payment_source_id
             )
@@ -601,9 +749,8 @@ class PostgresImporter:
             
             logger.info(f"Found {apartment_count} apartments and {reservation_count} reservations")
             
-            # Use a single transaction for the entire import process
+            # Process each building in a single transaction
             with self.engine.begin() as conn:
-                # Process each building
                 for i, building_data in enumerate(sheet_data.get("buildings", []), 1):
                     building_name = building_data.get("name", f"Building #{i}")
                     logger.info(f"Processing building {i}/{building_count}: {building_name}")
@@ -617,89 +764,115 @@ class PostgresImporter:
         except Exception as e:
             logger.error(f"Error importing {month_name} {year} sheet data: {e}")
             self.update_import_log(import_id, "failed", str(e))
+            # Re-raising the exception allows the caller to handle it
             raise
     
-    def import_multi_sheet_data(self, json_data: Dict) -> str:
+    def import_multi_sheet_data(self, json_data: Dict) -> list:
         """
-        Import data from multiple sheets.
+        Import data from multiple sheets, each in its own transaction and with its own import log.
         
         Args:
             json_data: JSON data with multiple sheets
             
         Returns:
-            str: Import log UUID
+            list: List of import log UUIDs for each processed sheet
         """
         sheets = json_data.get("sheets", [])
         
         if not sheets:
             raise ValueError("No sheets found in JSON data")
             
-        # Use the last sheet's month/year for the import log
-        last_sheet_data = sheets[-1].get("data", {})
-        month = last_sheet_data.get("month", datetime.now().month)
-        year = last_sheet_data.get("year", datetime.now().year)
-        
         logger.info(f"Starting multi-sheet import with {len(sheets)} sheets")
         
-        # Create import log
-        import_id = self.create_import_log(month, year)
+        # Count total buildings, apartments, and reservations for logging
+        total_buildings = 0
+        total_apartments = 0
+        total_reservations = 0
         
-        try:
-            # Count total buildings, apartments, and reservations for logging
-            total_buildings = 0
-            total_apartments = 0
-            total_reservations = 0
+        for sheet in sheets:
+            sheet_data = sheet.get("data", {})
+            total_buildings += len(sheet_data.get("buildings", []))
             
-            for sheet in sheets:
-                sheet_data = sheet.get("data", {})
-                total_buildings += len(sheet_data.get("buildings", []))
+            for building in sheet_data.get("buildings", []):
+                total_apartments += len(building.get("apartments", []))
+                for apartment in building.get("apartments", []):
+                    total_reservations += len(apartment.get("reservations", []))
+        
+        logger.info(f"Found total: {total_buildings} buildings, {total_apartments} apartments, {total_reservations} reservations")
+        
+        # Track import logs and processing status
+        import_logs = []
+        successful_imports = 0
+        failed_imports = 0
+        
+        # Process each sheet in its own transaction with its own import log
+        for sheet_idx, sheet in enumerate(sheets, 1):
+            sheet_data = sheet.get("data", {})
+            sheet_name = sheet.get("name", f"Sheet #{sheet_idx}")
+            sheet_month = sheet_data.get("month")
+            sheet_year = sheet_data.get("year")
+            
+            # Default to current month/year if not specified
+            if not sheet_month:
+                sheet_month = datetime.now().month
+            if not sheet_year:
+                sheet_year = datetime.now().year
+            
+            month_name = {
+                1: "January", 2: "February", 3: "March", 4: "April",
+                5: "May", 6: "June", 7: "July", 8: "August",
+                9: "September", 10: "October", 11: "November", 12: "December"
+            }.get(sheet_month, "Unknown")
+            
+            logger.info(f"Processing sheet {sheet_idx}/{len(sheets)}: {month_name} {sheet_year} ({sheet_name})")
+            
+            # Create an import log for this specific sheet
+            import_id = self.create_import_log(sheet_month, sheet_year)
+            import_logs.append(import_id)
+            
+            try:
+                # Count buildings, apartments and reservations for this sheet
+                building_count = len(sheet_data.get("buildings", []))
+                apartment_count = 0
+                reservation_count = 0
                 
                 for building in sheet_data.get("buildings", []):
-                    total_apartments += len(building.get("apartments", []))
+                    apartment_count += len(building.get("apartments", []))
                     for apartment in building.get("apartments", []):
-                        total_reservations += len(apartment.get("reservations", []))
-            
-            logger.info(f"Found total: {total_buildings} buildings, {total_apartments} apartments, {total_reservations} reservations")
-            
-            # Use a single transaction for all sheets
-            with self.engine.begin() as conn:
-                # Process each sheet
-                for sheet_idx, sheet in enumerate(sheets, 1):
-                    sheet_data = sheet.get("data", {})
-                    sheet_name = sheet.get("name", f"Sheet #{sheet_idx}")
-                    sheet_month = sheet_data.get("month")
-                    sheet_year = sheet_data.get("year")
-                    
-                    if sheet_month and sheet_year:
-                        month_name = {
-                            1: "January", 2: "February", 3: "March", 4: "April",
-                            5: "May", 6: "June", 7: "July", 8: "August",
-                            9: "September", 10: "October", 11: "November", 12: "December"
-                        }.get(sheet_month, "Unknown")
-                        logger.info(f"Processing sheet {sheet_idx}/{len(sheets)}: {month_name} {sheet_year}")
-                    else:
-                        logger.info(f"Processing sheet {sheet_idx}/{len(sheets)}: {sheet_name}")
-                    
-                    # Process each building in the sheet
-                    building_count = len(sheet_data.get("buildings", []))
-                    logger.info(f"Sheet contains {building_count} buildings")
-                    
+                        reservation_count += len(apartment.get("reservations", []))
+                
+                logger.info(f"Sheet contains {building_count} buildings, {apartment_count} apartments, {reservation_count} reservations")
+                
+                # Process the sheet in its own transaction
+                with self.engine.begin() as conn:
                     for b_idx, building_data in enumerate(sheet_data.get("buildings", []), 1):
                         building_name = building_data.get("name", f"Building #{b_idx}")
                         logger.info(f"Processing building {b_idx}/{building_count}: {building_name}")
                         self.process_building(conn, building_data)
-            
-            # Update import log to completed
-            self.update_import_log(import_id, "completed")
-            logger.info(f"Successfully completed import of {len(sheets)} sheets")
-            
-            return import_id
-        except Exception as e:
-            logger.error(f"Error importing multiple sheets: {e}")
-            self.update_import_log(import_id, "failed", str(e))
-            raise
+                        
+                # Update import log to completed
+                self.update_import_log(import_id, "completed")
+                logger.info(f"Successfully processed sheet {sheet_idx}: {month_name} {sheet_year}")
+                successful_imports += 1
+                
+            except Exception as e:
+                # If a sheet fails, log the error and mark its import log as failed
+                error_msg = f"Error processing sheet {sheet_idx} ({sheet_name}): {str(e)}"
+                logger.error(error_msg)
+                self.update_import_log(import_id, "failed", str(e))
+                failed_imports += 1
+        
+        # Log the overall results of the multi-sheet import
+        if failed_imports == 0:
+            logger.info(f"Successfully completed import of all {len(sheets)} sheets")
+        elif successful_imports > 0:
+            logger.warning(f"Partially completed import: {successful_imports} sheets succeeded, {failed_imports} failed")
+        else:
+            logger.error(f"Import failed: all {len(sheets)} sheets failed to process")
+        
+        return import_logs
     
-    def import_json(self, json_data: Union[Dict, str]) -> str:
+    def import_json(self, json_data: Union[Dict, str]) -> Union[str, list]:
         """
         Import data from JSON.
         
@@ -707,7 +880,7 @@ class PostgresImporter:
             json_data: JSON data as dictionary or string
             
         Returns:
-            str: Import log UUID
+            Union[str, list]: Import log UUID for single sheet or list of import log UUIDs for multiple sheets
         """
         # Parse JSON if it's a string
         if isinstance(json_data, str):
@@ -715,6 +888,8 @@ class PostgresImporter:
             
         # Determine if it's single sheet or multi-sheet
         if "sheets" in json_data:
+            # Returns a list of import log UUIDs (one per sheet)
             return self.import_multi_sheet_data(json_data)
         else:
+            # Returns a single import log UUID
             return self.import_sheet_data(json_data)
