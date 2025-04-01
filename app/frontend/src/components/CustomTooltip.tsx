@@ -66,7 +66,7 @@ export function useTooltip(delay = 100) {
   const Tooltip = isVisible ? (
     createPortal(
       <div 
-        className="fixed z-50 px-3 py-2 text-sm bg-gray-800 text-white rounded shadow-lg max-w-xs"
+        className="fixed z-50 px-3 py-2 text-xs bg-gray-800 text-white rounded shadow-lg max-w-xs"
         style={{
           left: `${position.x}px`,
           top: `${position.y - 10}px`,

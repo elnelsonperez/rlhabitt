@@ -14,12 +14,12 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
   // Weekend styling (Saturday or Sunday)
   const isWeekend = date.getDay() === 0 || date.getDay() === 6
   
-  // Base cell styling - more compact with better content layout
+  // Base cell styling - width adjusted for rate text
   const cellStyle: React.CSSProperties = {
     position: 'relative',
-    height: '60px',
+    height: '50px',
     width: '60px',
-    padding: '4px',
+    padding: '3px',
     backgroundColor: isWeekend ? '#f9fafb' : 'white', // Light gray for weekends
     borderColor: isWeekend ? '#e5e7eb' : '#e5e7eb', // Slightly darker border for weekends
     borderWidth: '1px',
@@ -38,7 +38,7 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
     width: 0,
     height: 0,
     borderStyle: 'solid',
-    borderWidth: '0 60px 60px 0', // Creates a triangle in the top-right corner - adjusted for the smaller cell
+    borderWidth: '0 60px 50px 0', // Creates a triangle in the top-right corner - adjusted for cell dimensions
     borderColor: `transparent ${reservation?.color_hex || 'transparent'} transparent transparent`,
     zIndex: 0,
     opacity: 0.9, // Slightly transparent for better text visibility
@@ -53,7 +53,10 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
   // Handle click to navigate to reservation detail
   const handleClick = () => {
     if (reservation) {
-      navigate({ to: `/reservations/${reservation.id}` })
+      navigate({
+        to: '/reservations/$reservationId',
+        params: { reservationId: reservation.id },
+      })
     }
   }
   

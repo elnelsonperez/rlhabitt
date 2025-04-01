@@ -33,13 +33,16 @@ export function Header() {
         </div>
         
         {user && (
-          <div className="flex items-center gap-4">
-            <span>{user.email}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-300">{user.email}</span>
             <button 
               onClick={() => logout()} 
-              className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded transition-colors"
+              className="text-gray-400 hover:text-gray-200 text-sm px-2 py-1 rounded-md border border-gray-700 hover:border-gray-600 transition-colors"
+              title="Logout"
             >
-              Logout
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
             </button>
           </div>
         )}
