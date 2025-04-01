@@ -22,7 +22,7 @@ wheels/
 .pytest_cache/
 
 # Virtual environments
-.env
+sheet_parser/.env
 .venv
 env/
 venv/

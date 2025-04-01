@@ -3,7 +3,6 @@ import os
 import json
 import argparse
 import logging
-from pathlib import Path
 from dotenv import load_dotenv
 from .downloader import OneDriveDownloader
 from .xlsx_parser import CondoRentalParser

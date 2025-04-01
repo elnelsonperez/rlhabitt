@@ -4,7 +4,6 @@ import json
 import logging
 import tempfile
 from datetime import datetime
-from pathlib import Path
 from flask import Flask, jsonify, request, Response
 from dotenv import load_dotenv
 

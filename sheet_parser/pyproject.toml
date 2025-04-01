@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "sheet_parser"
+version = "0.1.0"
+description = "Download and parse condo rental Excel sheets from OneDrive"
+authors = ["User"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+msal = "^1.32.0"
+requests = "^2.32.3"
+python-dotenv = "^1.1.0"
+openpyxl = "^3.1.5"
+flask = "^3.0.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+sheet_parser = "src.main:main"

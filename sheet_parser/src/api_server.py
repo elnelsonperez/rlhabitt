@@ -1,9 +1,8 @@
-"""Main entry point for RL HABITT backend.
+"""API server for RL HABITT backend.
 
-This module provides a unified entry point to run either the CLI or the API server.
+This module provides the entry point to run the API server.
 """
 import os
-import sys
 import logging
 import argparse
 from dotenv import load_dotenv
@@ -32,11 +31,6 @@ def run_api(host='0.0.0.0', port=5000, debug=False):
     print(f"Starting API server on {host}:{port}")
     app.run(host=host, port=port, debug=debug)
 
-def run_cli():
-    """Run the CLI."""
-    from . import __main__
-    sys.exit(__main__.main())
-
 def download_file(file_id, output_path=None, verbose=False):
     """
     Download a shared file from OneDrive using its file ID.
@@ -62,31 +56,23 @@ def download_file(file_id, output_path=None, verbose=False):
     return downloader.download_file(file_id, output_path)
 
 def main():
-    """Main entry point."""
+    """Main entry point for API server."""
     parser = argparse.ArgumentParser(
-        description="RL HABITT Backend - Run as CLI or API server"
+        description="RL HABITT Backend - API Server"
     )
     
-    # Create subparsers for different modes
-    subparsers = parser.add_subparsers(dest='mode', help='Mode to run')
-    
-    # CLI mode
-    cli_parser = subparsers.add_parser('cli', help='Run in CLI mode')
-    
-    # API mode
-    api_parser = subparsers.add_parser('api', help='Run as API server')
-    api_parser.add_argument(
+    parser.add_argument(
         '--host', 
         default=os.getenv('API_HOST', '0.0.0.0'),
         help='Host to bind the server to (default: 0.0.0.0)'
     )
-    api_parser.add_argument(
+    parser.add_argument(
         '--port', 
         type=int,
-        default=int(os.getenv('API_PORT', 5000)),
-        help='Port to bind the server to (default: 5000)'
+        default=int(os.getenv('API_PORT', 5052)),
+        help='Port to bind the server to (default: 5052)'
     )
-    api_parser.add_argument(
+    parser.add_argument(
         '--debug',
         action='store_true',
         help='Run the server in debug mode'
@@ -94,16 +80,11 @@ def main():
     
     args = parser.parse_args()
     
-    # Default to CLI mode if no mode specified
-    if not args.mode:
-        run_cli()
-        return
+    # Configure logging
+    configure_logging(args.debug)
     
-    # Run in specified mode
-    if args.mode == 'cli':
-        run_cli()
-    elif args.mode == 'api':
-        run_api(host=args.host, port=args.port, debug=args.debug)
+    # Run API server
+    run_api(host=args.host, port=args.port, debug=args.debug)
 
 if __name__ == '__main__':
     main()
