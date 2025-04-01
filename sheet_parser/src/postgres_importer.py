@@ -1,37 +1,63 @@
 import os
 import json
+import uuid
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Union
-from supabase import create_client, Client
-import uuid
+from typing import Dict, Optional, Union
+
+# SQLAlchemy imports
+from sqlalchemy import create_engine, MetaData, select, insert, update, text
+
 
 logger = logging.getLogger(__name__)
 
-class SupabaseImporter:
+class PostgresImporter:
     """
-    Class to import reservation data from JSON into Supabase using the API
-    instead of PL/pgSQL functions.
+    Class to import reservation data from JSON into PostgreSQL database directly
+    using SQLAlchemy for better performance than the Supabase API.
     """
     
-    def __init__(self, supabase_url: Optional[str] = None, supabase_key: Optional[str] = None):
+    def __init__(self, postgres_url: Optional[str] = None):
         """
-        Initialize the Supabase importer.
+        Initialize the PostgreSQL importer.
         
         Args:
-            supabase_url: Supabase URL (optional, falls back to env var)
-            supabase_key: Supabase API Key (optional, falls back to env var)
+            postgres_url: PostgreSQL connection URL (optional, falls back to env var)
         """
-        # Get credentials from params or environment variables
-        self.supabase_url = supabase_url or os.environ.get("SUPABASE_URL")
-        self.supabase_key = supabase_key or os.environ.get("SUPABASE_KEY")
+        # Get database URL from params or environment variables
+        self.postgres_url = postgres_url or os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
         
-        if not self.supabase_url or not self.supabase_key:
-            raise ValueError("Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_KEY environment variables.")
+        if not self.postgres_url:
+            raise ValueError("Missing PostgreSQL connection URL. Set DATABASE_URL or POSTGRES_URL environment variable.")
         
-        # Initialize Supabase client
-        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        # Initialize SQLAlchemy engine with a reasonable pool size for bulk operations
+        self.engine = create_engine(
+            self.postgres_url,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True  # Check connection health
+        )
         
+        # Initialize metadata for reflection
+        self.metadata = MetaData()
+        
+        # Initialize table objects
+        self._init_tables()
+    
+    def _init_tables(self):
+        """Initialize table objects by reflecting schema from the database."""
+        self.metadata.reflect(bind=self.engine)
+        
+        # Access tables by name
+        self.import_logs = self.metadata.tables['import_logs']
+        self.buildings = self.metadata.tables['buildings']
+        self.owners = self.metadata.tables['owners']
+        self.apartments = self.metadata.tables['apartments']
+        self.guests = self.metadata.tables['guests']
+        self.payment_sources = self.metadata.tables['payment_sources']
+        self.bookings = self.metadata.tables['bookings']
+        self.reservations = self.metadata.tables['reservations']
+    
     def create_import_log(self, month: int, year: int) -> str:
         """
         Create an import log entry.
@@ -45,13 +71,15 @@ class SupabaseImporter:
         """
         import_id = str(uuid.uuid4())
         
-        # Create the import log
-        self.supabase.table("import_logs").insert({
-            "id": import_id,
-            "month": month,
-            "year": year,
-            "status": "in_progress"
-        }).execute()
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(self.import_logs).values(
+                    id=import_id,
+                    month=month,
+                    year=year,
+                    status='in_progress'
+                )
+            )
         
         return import_id
     
@@ -64,37 +92,51 @@ class SupabaseImporter:
             status: New status ('completed' or 'failed')
             error_message: Optional error message if status is 'failed'
         """
-        data = {"status": status}
+        values = {'status': status}
         if error_message:
-            data["error_message"] = error_message
+            values['error_message'] = error_message
             
-        self.supabase.table("import_logs").update(data).eq("id", import_id).execute()
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(self.import_logs)
+                .where(self.import_logs.c.id == import_id)
+                .values(**values)
+            )
     
-    def get_or_create_building(self, name: str) -> str:
+    def get_or_create_building(self, conn, name: str) -> str:
         """
         Get a building by name or create it if it doesn't exist.
         
         Args:
+            conn: Database connection
             name: Building name
             
         Returns:
             str: Building UUID
         """
         # Try to find existing building
-        result = self.supabase.table("buildings").select("id").eq("name", name).execute()
+        query = select(self.buildings.c.id).where(self.buildings.c.name == name)
+        result = conn.execute(query).first()
         
-        if result.data and len(result.data) > 0:
-            return result.data[0]["id"]
+        if result:
+            return str(result[0])
         
         # Create new building
-        response = self.supabase.table("buildings").insert({"name": name}).execute()
-        return response.data[0]["id"]
+        building_id = str(uuid.uuid4())
+        conn.execute(
+            insert(self.buildings).values(
+                id=building_id,
+                name=name
+            )
+        )
+        return building_id
     
-    def get_or_create_owner(self, name: Optional[str]) -> Optional[str]:
+    def get_or_create_owner(self, conn, name: Optional[str]) -> Optional[str]:
         """
         Get an owner by name or create it if it doesn't exist.
         
         Args:
+            conn: Database connection
             name: Owner name
             
         Returns:
@@ -104,20 +146,30 @@ class SupabaseImporter:
             return None
             
         # Try to find existing owner
-        result = self.supabase.table("owners").select("id").eq("name", name).execute()
+        query = select(self.owners.c.id).where(self.owners.c.name == name)
+        result = conn.execute(query).first()
         
-        if result.data and len(result.data) > 0:
-            return result.data[0]["id"]
+        if result:
+            return str(result[0])
         
         # Create new owner
-        response = self.supabase.table("owners").insert({"name": name}).execute()
-        return response.data[0]["id"]
+        owner_id = str(uuid.uuid4())
+        conn.execute(
+            insert(self.owners).values(
+                id=owner_id,
+                name=name
+            )
+        )
+        return owner_id
     
-    def get_or_create_apartment(self, building_id: str, code: Optional[str], raw_text: str, owner_id: Optional[str]) -> str:
+    def get_or_create_apartment(self, conn, building_id: str, code: Optional[str], 
+                               raw_text: str, owner_id: Optional[str]) -> str:
         """
-        Get an apartment by building and code/raw_text or create it if it doesn't exist.
+        Get an apartment by building and raw_text or create it if it doesn't exist.
+        Only searches by raw_text, as that is the most reliable identifier.
         
         Args:
+            conn: Database connection
             building_id: Building UUID
             code: Apartment code (may be None)
             raw_text: Apartment raw text
@@ -126,41 +178,52 @@ class SupabaseImporter:
         Returns:
             str: Apartment UUID
         """
-        # Try to find existing apartment
-        query = self.supabase.table("apartments").select("id").eq("building_id", building_id)
-        query = query.eq("raw_text", raw_text)
+        # Try to find existing apartment by raw_text only (more reliable)
+        query = select(self.apartments.c.id).where(
+            (self.apartments.c.building_id == building_id) &
+            (self.apartments.c.raw_text == raw_text)
+        )
             
-        result = query.execute()
+        result = conn.execute(query).first()
         
-        if result.data and len(result.data) > 0:
-            apartment_id = result.data[0]["id"]
+        if result:
+            apartment_id = str(result[0])
             
-            # Update owner if needed
+            # Update owner if needed and provided
             if owner_id:
-                self.supabase.table("apartments").update(
-                    {"owner_id": owner_id}
-                ).eq("id", apartment_id).execute()
+                conn.execute(
+                    update(self.apartments)
+                    .where(self.apartments.c.id == apartment_id)
+                    .values(owner_id=owner_id)
+                )
                 
             return apartment_id
         
         # Create new apartment
-        data = {
-            "building_id": building_id,
-            "raw_text": raw_text,
-            "owner_id": owner_id
+        apartment_id = str(uuid.uuid4())
+        values = {
+            'id': apartment_id,
+            'building_id': building_id,
+            'raw_text': raw_text,
         }
         
         if code:
-            data["code"] = code
+            values['code'] = code
             
-        response = self.supabase.table("apartments").insert(data).execute()
-        return response.data[0]["id"]
+        if owner_id:
+            values['owner_id'] = owner_id
+            
+        conn.execute(
+            insert(self.apartments).values(**values)
+        )
+        return apartment_id
     
-    def get_or_create_guest(self, name: Optional[str]) -> Optional[str]:
+    def get_or_create_guest(self, conn, name: Optional[str]) -> Optional[str]:
         """
         Get a guest by name or create it if it doesn't exist.
         
         Args:
+            conn: Database connection
             name: Guest name
             
         Returns:
@@ -170,60 +233,77 @@ class SupabaseImporter:
             return None
             
         # Try to find existing guest
-        result = self.supabase.table("guests").select("id").eq("name", name).execute()
+        query = select(self.guests.c.id).where(self.guests.c.name == name)
+        result = conn.execute(query).first()
         
-        if result.data and len(result.data) > 0:
-            return result.data[0]["id"]
+        if result:
+            return str(result[0])
         
         # Create new guest
-        response = self.supabase.table("guests").insert({"name": name}).execute()
-        return response.data[0]["id"]
+        guest_id = str(uuid.uuid4())
+        conn.execute(
+            insert(self.guests).values(
+                id=guest_id,
+                name=name
+            )
+        )
+        return guest_id
     
-    def get_payment_source(self, name: str) -> Optional[str]:
+    def get_payment_source(self, conn, name: str) -> Optional[str]:
         """
         Get a payment source by name.
         
         Args:
+            conn: Database connection
             name: Payment source name
             
         Returns:
             str: Payment source UUID or None if not found
         """
-        result = self.supabase.table("payment_sources").select("id").eq("name", name).execute()
+        query = select(self.payment_sources.c.id).where(self.payment_sources.c.name == name)
+        result = conn.execute(query).first()
         
-        if result.data and len(result.data) > 0:
-            return result.data[0]["id"]
+        if result:
+            return str(result[0])
         
         return None
     
-    def get_existing_booking(self, apartment_id: str, date_str: str) -> Optional[str]:
+    def get_existing_booking(self, conn, apartment_id: str, date_str: str) -> Optional[str]:
         """
         Check if there's an existing booking for a specific apartment and date.
         
         Args:
+            conn: Database connection
             apartment_id: Apartment UUID
             date_str: Date string in ISO format
             
         Returns:
             str: Booking UUID or None if not found
         """
-        # Use a join query through reservations
-        result = self.supabase.rpc(
-            "get_booking_for_reservation",
-            {"p_apartment_id": apartment_id, "p_date": date_str}
-        ).execute()
+        # Execute a join query to find the booking ID
+        query = text("""
+            SELECT r.booking_id
+            FROM reservations r
+            WHERE r.apartment_id = :apartment_id 
+            AND r.date = :date
+            LIMIT 1
+        """)
         
-        if result.data and len(result.data) > 0:
-            return result.data[0]["booking_id"]
+        result = conn.execute(query, {"apartment_id": apartment_id, "date": date_str}).first()
+        
+        if result:
+            return str(result[0])
         
         return None
     
-    def create_booking(self, apartment_id: str, guest_id: Optional[str], reservation_date: str,
-                      rate: float, cleaning_fee: float, payment_source_id: Optional[str], comment: Optional[str]) -> str:
+    def create_booking(self, conn, apartment_id: str, guest_id: Optional[str], 
+                      reservation_date: str, rate: float, cleaning_fee: float, 
+                      payment_source_id: Optional[str], comment: Optional[str]) -> str:
         """
         Create a new booking.
         
         Args:
+            conn: Database connection
             apartment_id: Apartment UUID
             guest_id: Guest UUID (may be None)
             reservation_date: Reservation date in ISO format
@@ -239,32 +319,37 @@ class SupabaseImporter:
         date_obj = datetime.fromisoformat(reservation_date).date()
         check_out = date_obj.replace(day=date_obj.day + 1).isoformat()
         
-        data = {
-            "apartment_id": apartment_id,
-            "check_in": reservation_date,
-            "check_out": check_out,
-            "nights": 1,
-            "nightly_rate": rate,
-            "cleaning_fee": cleaning_fee,
-            "total_amount": rate + cleaning_fee,
-            "notes": comment
+        booking_id = str(uuid.uuid4())
+        values = {
+            'id': booking_id,
+            'apartment_id': apartment_id,
+            'check_in': reservation_date,
+            'check_out': check_out,
+            'nights': 1,
+            'nightly_rate': rate,
+            'cleaning_fee': cleaning_fee,
+            'total_amount': rate + cleaning_fee,
+            'notes': comment
         }
         
         if guest_id:
-            data["guest_id"] = guest_id
+            values['guest_id'] = guest_id
             
         if payment_source_id:
-            data["payment_source_id"] = payment_source_id
+            values['payment_source_id'] = payment_source_id
             
-        response = self.supabase.table("bookings").insert(data).execute()
-        return response.data[0]["id"]
+        conn.execute(
+            insert(self.bookings).values(**values)
+        )
+        return booking_id
     
-    def create_or_update_reservation(self, booking_id: str, apartment_id: str, date_str: str,
-                                    rate: float, color_hex: Optional[str], comment: Optional[str]):
+    def upsert_reservation(self, conn, booking_id: str, apartment_id: str, date_str: str,
+                          rate: float, color_hex: Optional[str], comment: Optional[str]):
         """
-        Create or update a reservation.
+        Create or update a reservation using the upsert_reservation function.
         
         Args:
+            conn: Database connection
             booking_id: Booking UUID
             apartment_id: Apartment UUID
             date_str: Date string in ISO format
@@ -272,35 +357,33 @@ class SupabaseImporter:
             color_hex: Color hex code (may be None)
             comment: Reservation comment (may be None)
         """
-        data = {
+        # Execute the upsert_reservation function
+        query = text("""
+            SELECT upsert_reservation(
+                :booking_id, 
+                :apartment_id, 
+                :date, 
+                :rate, 
+                :color_hex, 
+                :comment
+            )
+        """)
+        
+        conn.execute(query, {
             "booking_id": booking_id,
             "apartment_id": apartment_id,
             "date": date_str,
             "rate": rate,
+            "color_hex": color_hex,
             "comment": comment
-        }
-        
-        if color_hex:
-            data["color_hex"] = color_hex
-            
-        # Use RPC to handle the upsert
-        self.supabase.rpc(
-            "upsert_reservation",
-            {
-                "p_booking_id": booking_id,
-                "p_apartment_id": apartment_id,
-                "p_date": date_str,
-                "p_rate": rate,
-                "p_color_hex": color_hex,
-                "p_comment": comment
-            }
-        ).execute()
+        })
     
-    def process_building(self, building_data: Dict):
+    def process_building(self, conn, building_data: Dict):
         """
         Process a building's data.
         
         Args:
+            conn: Database connection
             building_data: Building data dictionary
         """
         building_name = building_data.get("name")
@@ -312,17 +395,18 @@ class SupabaseImporter:
         logger.info(f"Processing building: {building_name}")
         
         # Get or create the building
-        building_id = self.get_or_create_building(building_name)
+        building_id = self.get_or_create_building(conn, building_name)
         
         # Process each apartment
         for apartment_data in building_data.get("apartments", []):
-            self.process_apartment(building_id, apartment_data)
+            self.process_apartment(conn, building_id, apartment_data)
             
-    def process_apartment(self, building_id: str, apartment_data: Dict):
+    def process_apartment(self, conn, building_id: str, apartment_data: Dict):
         """
         Process an apartment's data.
         
         Args:
+            conn: Database connection
             building_id: Building UUID
             apartment_data: Apartment data dictionary
         """
@@ -337,14 +421,14 @@ class SupabaseImporter:
         logger.info(f"Processing apartment: {raw_text}")
         
         # Get or create the owner
-        owner_id = self.get_or_create_owner(owner_name) if owner_name else None
+        owner_id = self.get_or_create_owner(conn, owner_name) if owner_name else None
         
         # Get or create the apartment
-        apartment_id = self.get_or_create_apartment(building_id, apt_code, raw_text, owner_id)
+        apartment_id = self.get_or_create_apartment(conn, building_id, apt_code, raw_text, owner_id)
         
         # Process each reservation
         for reservation_data in apartment_data.get("reservations", []):
-            self.process_reservation(apartment_id, reservation_data)
+            self.process_reservation(conn, apartment_id, reservation_data)
     
     def parse_guest_name(self, comment: Optional[str]) -> Optional[str]:
         """
@@ -374,11 +458,12 @@ class SupabaseImporter:
         
         return guest_name if guest_name else None
     
-    def detect_payment_source(self, comment: Optional[str]) -> Optional[str]:
+    def detect_payment_source(self, conn, comment: Optional[str]) -> Optional[str]:
         """
         Detect payment source from comment.
         
         Args:
+            conn: Database connection
             comment: Reservation comment
             
         Returns:
@@ -390,17 +475,18 @@ class SupabaseImporter:
         comment_upper = comment.upper()
         
         if "BOOKING.COM" in comment_upper:
-            return self.get_payment_source("Booking.com")
+            return self.get_payment_source(conn, "Booking.com")
         elif "AIRBNB" in comment_upper:
-            return self.get_payment_source("Airbnb")
+            return self.get_payment_source(conn, "Airbnb")
             
         return None
     
-    def process_reservation(self, apartment_id: str, reservation_data: Dict):
+    def process_reservation(self, conn, apartment_id: str, reservation_data: Dict):
         """
         Process a reservation's data.
         
         Args:
+            conn: Database connection
             apartment_id: Apartment UUID
             reservation_data: Reservation data dictionary
         """
@@ -426,19 +512,20 @@ class SupabaseImporter:
             
         # Parse guest name from comment
         guest_name = self.parse_guest_name(comment)
-        guest_id = self.get_or_create_guest(guest_name) if guest_name else None
+        guest_id = self.get_or_create_guest(conn, guest_name) if guest_name else None
         
         # Detect payment source
-        payment_source_id = self.detect_payment_source(comment)
+        payment_source_id = self.detect_payment_source(conn, comment)
         
         # Check for existing booking
-        existing_booking_id = self.get_existing_booking(apartment_id, date_str)
+        existing_booking_id = self.get_existing_booking(conn, apartment_id, date_str)
         
         if existing_booking_id:
             booking_id = existing_booking_id
         else:
             # Create a new booking (default 1-day stay)
             booking_id = self.create_booking(
+                conn=conn,
                 apartment_id=apartment_id,
                 guest_id=guest_id,
                 reservation_date=date_str,
@@ -449,7 +536,8 @@ class SupabaseImporter:
             )
             
         # Create or update the reservation
-        self.create_or_update_reservation(
+        self.upsert_reservation(
+            conn=conn,
             booking_id=booking_id,
             apartment_id=apartment_id,
             date_str=date_str,
@@ -478,9 +566,11 @@ class SupabaseImporter:
         import_id = self.create_import_log(month, year)
         
         try:
-            # Process each building
-            for building_data in sheet_data.get("buildings", []):
-                self.process_building(building_data)
+            # Use a single transaction for the entire import process
+            with self.engine.begin() as conn:
+                # Process each building
+                for building_data in sheet_data.get("buildings", []):
+                    self.process_building(conn, building_data)
                 
             # Update import log to completed
             self.update_import_log(import_id, "completed")
@@ -515,13 +605,15 @@ class SupabaseImporter:
         import_id = self.create_import_log(month, year)
         
         try:
-            # Process each sheet
-            for sheet in sheets:
-                sheet_data = sheet.get("data", {})
-                
-                # Process each building in the sheet
-                for building_data in sheet_data.get("buildings", []):
-                    self.process_building(building_data)
+            # Use a single transaction for all sheets
+            with self.engine.begin() as conn:
+                # Process each sheet
+                for sheet in sheets:
+                    sheet_data = sheet.get("data", {})
+                    
+                    # Process each building in the sheet
+                    for building_data in sheet_data.get("buildings", []):
+                        self.process_building(conn, building_data)
             
             # Update import log to completed
             self.update_import_log(import_id, "completed")
@@ -551,5 +643,3 @@ class SupabaseImporter:
             return self.import_multi_sheet_data(json_data)
         else:
             return self.import_sheet_data(json_data)
-
-

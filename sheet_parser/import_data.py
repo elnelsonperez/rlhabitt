@@ -12,7 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from src.xlsx_parser import CondoRentalParser
-from src.supabase_importer import SupabaseImporter
+from src.postgres_importer import PostgresImporter
 
 # Configure logging
 logging.basicConfig(
@@ -110,10 +110,10 @@ def import_json_to_supabase(json_data, verbose=False):
     
     # Create importer
     try:
-        importer = SupabaseImporter()
+        importer = PostgresImporter()
         
         # Import the data
-        logger.info("Importing data to Supabase")
+        logger.info("Importing data to PostgreSQL")
         import_id = importer.import_json(json_data)
         
         logger.info(f"Import completed successfully with ID: {import_id}")
