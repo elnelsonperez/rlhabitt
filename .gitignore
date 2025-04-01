@@ -31,9 +31,6 @@ env.bak/
 venv.bak/
 .python-version
 
-# Poetry
-poetry.lock
-
 # IDE files
 .idea/
 .vscode/
