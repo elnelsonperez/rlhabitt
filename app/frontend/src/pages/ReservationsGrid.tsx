@@ -147,23 +147,23 @@ export function ReservationsGridPage() {
       
       {/* Reservations grid */}
       {reservationsData && (
-        <div className="overflow-auto max-h-[70vh] border border-gray-200 rounded-lg" style={{ position: 'relative' }}>
-          <table className="min-w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+        <div className="overflow-auto max-h-[75vh] border border-gray-200 rounded-lg" style={{ position: 'relative' }}>
+          <table className="min-w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
                 {/* Apartment column header */}
                 <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px] border-b border-gray-200 bg-gray-50"
+                  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px] border-b border-gray-200 bg-gray-50"
                   style={{ 
                     position: 'sticky', 
                     left: 0, 
-                    top: 0, 
+                    top: 0,
                     zIndex: 30,
-                    borderRight: '1px solid #d1d5db',
-                    boxShadow: 'inset -8px 0 8px -8px rgba(0, 0, 0, 0.15), 3px 0 5px -2px rgba(0, 0, 0, 0.08)'
+                    boxShadow: 'rgb(0 0 0 / 35%) -8px 0px 3px -8px inset, rgba(0, 0, 0, 0.08) 3px 0px 5px -8px'
                   }}
                 >
-                  Apartamento
+                  <div>Apartamento</div>
+                  <div className="text-[10px] font-normal text-gray-400">Propietario</div>
                 </th>
 
                 {/* Date column headers */}
@@ -172,11 +172,11 @@ export function ReservationsGridPage() {
                   return (
                     <th
                       key={date.toISOString()}
-                      className={`p-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-[80px] ${isWeekend ? 'bg-gray-100' : 'bg-gray-50'}`}
+                      className={`p-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-[60px] ${isWeekend ? 'bg-gray-100' : 'bg-gray-50'}`}
                       style={{ position: 'sticky', top: 0, zIndex: 20 }}
                     >
                       <div className="font-bold">{date.getDate()}</div>
-                      <div>
+                      <div className="text-[10px]">
                         {date.toLocaleDateString('es-ES', { weekday: 'short' })}
                       </div>
                     </th>
@@ -190,14 +190,21 @@ export function ReservationsGridPage() {
                 <tr key={apartment.id}>
                   {/* Apartment cell */}
                   <td
-                    className="px-6 z-20 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-b border-gray-200 bg-gray-50"
+                    className="z-20 px-4 py-2 whitespace-normal text-sm font-medium text-gray-900 border-b border-gray-200 bg-white"
                     style={{
                       position: 'sticky',
                       left: 0,
                       boxShadow: 'rgb(0 0 0 / 35%) -8px 0px 3px -8px inset, rgba(0, 0, 0, 0.08) 3px 0px 5px -8px'
                     }}
                   >
-                    {apartment.code || apartment.raw_text}
+                    <div className="font-medium">
+                      {apartment.code || apartment.raw_text}
+                    </div>
+                    {apartment.owners && apartment.owners.name !== (apartment.code || apartment.raw_text) && (
+                      <div className="text-xs text-gray-500 truncate">
+                        {apartment.owners.name}
+                      </div>
+                    )}
                   </td>
                   
                   {/* Reservation cells for each day */}

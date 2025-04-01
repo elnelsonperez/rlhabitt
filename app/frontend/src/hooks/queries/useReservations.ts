@@ -4,7 +4,13 @@ import { useAuthStore } from '../../store/auth'
 import { Database } from '../../lib/supabase/database.types'
 
 // Define types using the generated Database types
-export type Apartment = Database['public']['Tables']['apartments']['Row']
+export type Owner = Database['public']['Tables']['owners']['Row']
+
+// Extend Apartment type to include the owner
+export type Apartment = Database['public']['Tables']['apartments']['Row'] & {
+  owners?: Owner | null
+}
+
 export type Reservation = Database['public']['Tables']['reservations']['Row']
 export type Building = Database['public']['Tables']['buildings']['Row']
 
@@ -47,10 +53,13 @@ export function useReservations(buildingId: string, year: number, month: number)
         throw new Error('Building not found')
       }
       
-      // Get apartments for this building
+      // Get apartments for this building with owner information
       const { data: apartments, error: apartmentsError } = await supabase
         .from('apartments')
-        .select('id, code, raw_text, owner_id, building_id, active, description, created_at, updated_at')
+        .select(`
+          id, code, raw_text, owner_id, building_id, active, description, created_at, updated_at,
+          owners:owner_id (id, name)
+        `)
         .eq('building_id', buildingId)
         .order('raw_text', { ascending: true })
         

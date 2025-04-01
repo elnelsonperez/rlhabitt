@@ -14,17 +14,20 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
   // Weekend styling (Saturday or Sunday)
   const isWeekend = date.getDay() === 0 || date.getDay() === 6
   
-  // Base cell styling
+  // Base cell styling - more compact with better content layout
   const cellStyle: React.CSSProperties = {
     position: 'relative',
-    height: '80px',
-    width: '80px',
+    height: '60px',
+    width: '60px',
     padding: '4px',
     backgroundColor: isWeekend ? '#f9fafb' : 'white', // Light gray for weekends
     borderColor: isWeekend ? '#e5e7eb' : '#e5e7eb', // Slightly darker border for weekends
     borderWidth: '1px',
     borderStyle: 'solid',
     overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
   }
   
   // Color triangle styling (positioned diagonally in the corner)
@@ -35,7 +38,7 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
     width: 0,
     height: 0,
     borderStyle: 'solid',
-    borderWidth: '0 80px 80px 0', // Creates a triangle in the top-right corner
+    borderWidth: '0 60px 60px 0', // Creates a triangle in the top-right corner - adjusted for the smaller cell
     borderColor: `transparent ${reservation?.color_hex || 'transparent'} transparent transparent`,
     zIndex: 0,
     opacity: 0.9, // Slightly transparent for better text visibility
@@ -63,6 +66,7 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
   return (
     <>
       <div 
+        className="group"
         style={interactiveCellStyle}
         onClick={reservation ? handleClick : undefined}
         onKeyDown={(e) => {
@@ -78,33 +82,26 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
         {/* Color triangle in corner */}
         {reservation?.color_hex && <div style={triangleStyle}></div>}
         
-        {/* Date indicator in top-left corner */}
-        <div className="absolute top-1 left-1 text-xs font-medium text-gray-700 z-10">
-          {date.getDate()}
+        {/* Date indicator in top-left corner - visible only on hover */}
+        <div className="absolute top-1 left-1 text-xs font-medium z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <span className="bg-white px-1 py-0.5 rounded-sm text-gray-700 shadow-sm">
+            {date.getDate()}
+          </span>
         </div>
         
-        {/* Rate display */}
+        {/* Rate display with tooltip for comments */}
         {reservation && reservation.rate > 0 && (
-          <div className="absolute bottom-1 right-1 font-medium text-sm text-right z-10">
-            <span className="bg-white bg-opacity-80 px-1 py-0.5 rounded">
-              {formatRate(reservation.rate)}
-            </span>
-          </div>
-        )}
-        
-        {/* Comment indicator with custom tooltip */}
-        {reservation?.comment && (
           <div 
-            className="absolute bottom-1 left-1 text-xs z-10"
-            onMouseEnter={(e) => tooltipHandlers.onMouseEnter(e, reservation.comment || '')}
-            onMouseLeave={tooltipHandlers.onMouseLeave}
-            onFocus={(e) => tooltipHandlers.onFocus(e, reservation.comment || '')}
-            onBlur={tooltipHandlers.onBlur}
+            className="absolute bottom-1 right-1 font-medium text-xs text-right z-10"
+            {...(reservation.comment ? {
+              onMouseEnter: (e) => tooltipHandlers.onMouseEnter(e, reservation.comment || ''),
+              onMouseLeave: tooltipHandlers.onMouseLeave,
+              onFocus: (e) => tooltipHandlers.onFocus(e, reservation.comment || ''),
+              onBlur: tooltipHandlers.onBlur
+            } : {})}
           >
-            <span 
-              className="cursor-help hover:bg-gray-100 rounded-full inline-block w-5 h-5 text-center" 
-            >
-              💬
+            <span className={`bg-white bg-opacity-80 px-1 py-0.5 rounded ${reservation.comment ? 'cursor-help border-b border-dotted border-gray-400' : ''}`}>
+              {formatRate(reservation.rate)}
             </span>
           </div>
         )}
