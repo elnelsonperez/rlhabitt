@@ -31,7 +31,9 @@ poetry run python -m src.main api
 
 ### Using the API
 
-The sheet_parser provides a REST API for accessing reservation data:
+The sheet_parser provides a REST API for accessing and importing reservation data:
+
+#### Retrieving Reservation Data
 
 ```bash
 # Get reservations for the current month
@@ -41,7 +43,21 @@ curl -u username:password "http://localhost:5000/api/reservations?file_id=YOUR_F
 curl -u username:password "http://localhost:5000/api/reservations?file_id=YOUR_FILE_ID&months=3"
 ```
 
-See the sheet_parser README for complete documentation of all available options.
+#### Importing Data to Database
+
+```bash
+# Trigger an import of the last 2 months (default)
+curl -X POST -u username:password \
+  -H "Content-Type: application/json" \
+  -d '{"file_id": "YOUR_FILE_ID"}' \
+  "http://localhost:5000/api/import"
+
+# Check the status of an import
+curl -u username:password \
+  "http://localhost:5000/api/import/YOUR_CORRELATION_ID/status"
+```
+
+See the sheet_parser README for complete documentation of all available API endpoints and options.
 
 ## Development
 

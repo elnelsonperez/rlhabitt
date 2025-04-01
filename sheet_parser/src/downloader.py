@@ -1,7 +1,6 @@
 import os
 import requests
 import logging
-from pathlib import Path
 from .auth import OneDriveAuth
 
 logger = logging.getLogger(__name__)

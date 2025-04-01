@@ -237,6 +237,121 @@ curl -u username:password "http://localhost:5000/api/reservations?file_id=212404
 **Response:**
 The response format matches the JSON output from the CLI version, containing all reservation data.
 
+##### POST /api/import
+Trigger an import of reservation data directly to the database.
+
+Requires Basic Authentication.
+
+**Request Body (JSON):**
+```json
+{
+  "file_id": "2124047165A6F26!493036",  // Required: OneDrive file ID
+  "months": 2                           // Optional: Number of months to import, defaults to 2
+}
+```
+
+**Example Request:**
+```bash
+# Import the last 2 months of data (default)
+curl -X POST -u username:password \
+  -H "Content-Type: application/json" \
+  -d '{"file_id": "2124047165A6F26!493036"}' \
+  "http://localhost:5000/api/import"
+
+# Import the last 3 months of data
+curl -X POST -u username:password \
+  -H "Content-Type: application/json" \
+  -d '{"file_id": "2124047165A6F26!493036", "months": 3}' \
+  "http://localhost:5000/api/import"
+```
+
+**Response:**
+```json
+{
+  "correlation_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "processing",
+  "message": "Import job started for the last 2 months"
+}
+```
+
+This endpoint:
+1. Downloads the Excel file from OneDrive
+2. Parses the sheets for the specified number of months
+3. Imports the data into the PostgreSQL database
+4. Returns a correlation_id for tracking the import status
+
+##### GET /api/import/{correlation_id}/status
+Check the status of an import job.
+
+Requires Basic Authentication.
+
+**Example Request:**
+```bash
+# Check import status
+curl -u username:password \
+  "http://localhost:5000/api/import/a1b2c3d4-e5f6-7890-abcd-ef1234567890/status"
+```
+
+**Response (In Progress):**
+```json
+{
+  "correlation_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "processing"
+}
+```
+
+**Response (Completed):**
+```json
+{
+  "correlation_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "completed",
+  "total_sheets": 2,
+  "completed_sheets": 2,
+  "failed_sheets": 0,
+  "pending_sheets": 0
+}
+```
+
+**Response (Partial Success):**
+```json
+{
+  "correlation_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "partial",
+  "total_sheets": 2,
+  "completed_sheets": 1,
+  "failed_sheets": 1,
+  "pending_sheets": 0
+}
+```
+
+**Response (Failed):**
+```json
+{
+  "correlation_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "failed",
+  "error": "Error message with details about what went wrong"
+}
+```
+
+**Response (Not Found):**
+```json
+{
+  "correlation_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "not_found",
+  "message": "No import job found with this correlation ID"
+}
+```
+
+## API Structure
+
+The REST API is organized as a Flask application with modular blueprints:
+
+1. **app.py** - Main application setup and configuration
+2. **reservation_routes.py** - Endpoints for retrieving reservation data from Excel
+3. **import_routes.py** - Endpoints for importing reservation data to database
+
+This modular structure makes the codebase easier to maintain and extend.
+
 ## Features
 
 - Downloads shared OneDrive files using the Microsoft Graph API
@@ -250,3 +365,6 @@ The response format matches the JSON output from the CLI version, containing all
 - REST API mode with caching for efficient operation
 - Support for looking back a specific number of months
 - Automatically selects the current month's sheet by default
+- Database import with transaction isolation for reliability
+- Parallel imports with status tracking via correlation_id
+- Total amount parsing from reservation comments

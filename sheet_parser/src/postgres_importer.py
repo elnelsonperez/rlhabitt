@@ -58,27 +58,33 @@ class PostgresImporter:
         self.bookings = self.metadata.tables['bookings']
         self.reservations = self.metadata.tables['reservations']
     
-    def create_import_log(self, month: int, year: int) -> str:
+    def create_import_log(self, month: int, year: int, correlation_id: Optional[str] = None) -> str:
         """
         Create an import log entry.
         
         Args:
             month: Month number (1-12)
             year: Year (e.g., 2023)
+            correlation_id: Optional UUID to group related imports (default: None)
             
         Returns:
             str: The UUID of the created import log
         """
         import_id = str(uuid.uuid4())
         
+        values = {
+            'id': import_id,
+            'month': month,
+            'year': year,
+            'status': 'in_progress'
+        }
+        
+        if correlation_id:
+            values['correlation_id'] = correlation_id
+        
         with self.engine.begin() as conn:
             conn.execute(
-                insert(self.import_logs).values(
-                    id=import_id,
-                    month=month,
-                    year=year,
-                    status='in_progress'
-                )
+                insert(self.import_logs).values(**values)
             )
         
         return import_id
@@ -784,12 +790,13 @@ class PostgresImporter:
             comment=comment
         )
     
-    def import_sheet_data(self, sheet_data: Dict) -> str:
+    def import_sheet_data(self, sheet_data: Dict, correlation_id: Optional[str] = None) -> str:
         """
         Import data for a single month sheet.
         
         Args:
             sheet_data: Sheet data dictionary with buildings, apartments, reservations
+            correlation_id: Optional UUID to group related imports (default: None)
             
         Returns:
             str: Import log UUID
@@ -809,8 +816,8 @@ class PostgresImporter:
         
         logger.info(f"Starting import for {month_name} {year}")
             
-        # Create import log
-        import_id = self.create_import_log(month, year)
+        # Create import log with correlation_id if provided
+        import_id = self.create_import_log(month, year, correlation_id)
         building_count = len(sheet_data.get("buildings", []))
         logger.info(f"Found {building_count} buildings to process")
         
@@ -844,12 +851,13 @@ class PostgresImporter:
             # Re-raising the exception allows the caller to handle it
             raise
     
-    def import_multi_sheet_data(self, json_data: Dict) -> list:
+    def import_multi_sheet_data(self, json_data: Dict, correlation_id: Optional[str] = None) -> list:
         """
         Import data from multiple sheets, each in its own transaction and with its own import log.
         
         Args:
             json_data: JSON data with multiple sheets
+            correlation_id: Optional UUID to group related imports (default: None)
             
         Returns:
             list: List of import log UUIDs for each processed sheet
@@ -903,8 +911,8 @@ class PostgresImporter:
             
             logger.info(f"Processing sheet {sheet_idx}/{len(sheets)}: {month_name} {sheet_year} ({sheet_name})")
             
-            # Create an import log for this specific sheet
-            import_id = self.create_import_log(sheet_month, sheet_year)
+            # Create an import log for this specific sheet with the correlation_id
+            import_id = self.create_import_log(sheet_month, sheet_year, correlation_id)
             import_logs.append(import_id)
             
             try:
@@ -949,12 +957,13 @@ class PostgresImporter:
         
         return import_logs
     
-    def import_json(self, json_data: Union[Dict, str]) -> Union[str, list]:
+    def import_json(self, json_data: Union[Dict, str], correlation_id: Optional[str] = None) -> Union[str, list]:
         """
         Import data from JSON.
         
         Args:
             json_data: JSON data as dictionary or string
+            correlation_id: Optional UUID to group related imports (default: None)
             
         Returns:
             Union[str, list]: Import log UUID for single sheet or list of import log UUIDs for multiple sheets
@@ -963,10 +972,14 @@ class PostgresImporter:
         if isinstance(json_data, str):
             json_data = json.loads(json_data)
             
+        # Generate a correlation ID if not provided
+        if correlation_id is None:
+            correlation_id = str(uuid.uuid4())
+        
         # Determine if it's single sheet or multi-sheet
         if "sheets" in json_data:
             # Returns a list of import log UUIDs (one per sheet)
-            return self.import_multi_sheet_data(json_data)
+            return self.import_multi_sheet_data(json_data, correlation_id)
         else:
             # Returns a single import log UUID
-            return self.import_sheet_data(json_data)
+            return self.import_sheet_data(json_data, correlation_id)
