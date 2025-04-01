@@ -147,66 +147,81 @@ export function ReservationsGridPage() {
       
       {/* Reservations grid */}
       {reservationsData && (
-        <div className="overflow-x-auto">
-          <div className="inline-block min-w-full">
-            <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-              <table className="min-w-full divide-y divide-gray-200 border-collapse">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {/* Apartment column header */}
-                    <th className="sticky left-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px] border-r border-gray-300">
-                      Apartamento
-                    </th>
-                    
-                    {/* Date column headers */}
-                    {daysInMonth.map(date => {
-                      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                      return (
-                        <th 
-                          key={date.toISOString()} 
-                          className={`p-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[80px] ${isWeekend ? 'bg-gray-100' : ''}`}
-                        >
-                        <div className="font-bold">{date.getDate()}</div>
-                        <div>
-                          {date.toLocaleDateString('es-ES', { weekday: 'short' })}
-                        </div>
-                      </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
+        <div className="overflow-auto max-h-[70vh] border border-gray-200 rounded-lg" style={{ position: 'relative' }}>
+          <table className="min-w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                {/* Apartment column header */}
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px] border-r border-b border-gray-200 bg-gray-50"
+                  style={{ 
+                    position: 'sticky', 
+                    left: 0, 
+                    top: 0, 
+                    zIndex: 30,
+                    boxShadow: 'inset -8px 0 8px -8px rgba(0, 0, 0, 0.15)'
+                  }}
+                >
+                  Apartamento
+                </th>
                 
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {reservationsData.building.apartments.map(apartment => (
-                    <tr key={apartment.id}>
-                      {/* Apartment cell */}
-                      <td className="sticky left-0 z-10 bg-white px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-300">
-                        {apartment.code || apartment.raw_text}
+                {/* Date column headers */}
+                {daysInMonth.map(date => {
+                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                  return (
+                    <th 
+                      key={date.toISOString()} 
+                      className={`p-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-[80px] ${isWeekend ? 'bg-gray-100' : 'bg-gray-50'}`}
+                      style={{ position: 'sticky', top: 0, zIndex: 20 }}
+                    >
+                      <div className="font-bold">{date.getDate()}</div>
+                      <div>
+                        {date.toLocaleDateString('es-ES', { weekday: 'short' })}
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            
+            <tbody>
+              {reservationsData.building.apartments.map(apartment => (
+                <tr key={apartment.id}>
+                  {/* Apartment cell */}
+                  <td 
+                    className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-b border-gray-200 bg-white"
+                    style={{ 
+                      position: 'sticky', 
+                      left: 0, 
+                      zIndex: 20,
+                      boxShadow: '4px 0 6px -2px rgba(0, 0, 0, 0.1)'
+                    }}
+                  >
+                    {apartment.code || apartment.raw_text}
+                  </td>
+                  
+                  {/* Reservation cells for each day */}
+                  {daysInMonth.map(date => {
+                    const dateKey = formatDateKey(date)
+                    const reservation = reservationsData.reservationsByDay[dateKey]?.[apartment.id]
+                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                    
+                    return (
+                      <td 
+                        key={`${apartment.id}-${dateKey}`} 
+                        className={`p-0 text-sm text-center border-b border-gray-200 ${isWeekend ? 'bg-gray-50' : 'bg-white'}`}
+                      >
+                        <ReservationCell 
+                          reservation={reservation} 
+                          date={date}
+                        />
                       </td>
-                      
-                      {/* Reservation cells for each day */}
-                      {daysInMonth.map(date => {
-                        const dateKey = formatDateKey(date)
-                        const reservation = reservationsData.reservationsByDay[dateKey]?.[apartment.id]
-                        
-                        return (
-                          <td 
-                            key={`${apartment.id}-${dateKey}`} 
-                            className="p-0 text-sm text-center border-0"
-                          >
-                            <ReservationCell 
-                              reservation={reservation} 
-                              date={date}
-                            />
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
