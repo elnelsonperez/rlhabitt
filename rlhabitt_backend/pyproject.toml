@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "rlhabitt-backend"
+version = "0.1.0"
+description = "Download shared files from OneDrive using device-based authentication"
+authors = ["User"]
+readme = "README.md"
+packages = [{include = "rlhabitt_backend"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
