@@ -66,10 +66,24 @@ def parse_excel_file(excel_path, sheet_name=None, verbose=False):
         if not sheet_names:
             raise Exception("No sheets found in the workbook")
         
-        # If no sheet_name provided, use the first one
+        # If no sheet_name provided, find the first sheet with a valid month abbreviation
         if not sheet_name:
-            sheet_name = sheet_names[0]
-            logger.info(f"No sheet specified, using first sheet: {sheet_name}")
+            # Try to find a sheet with a valid month abbreviation
+            valid_sheet = None
+            for s in sheet_names:
+                # Check if the sheet name matches the [Month]. [Year] pattern
+                month_num, year = parser.parse_sheet_date(s)
+                if month_num is not None and year is not None:
+                    valid_sheet = s
+                    break
+            
+            if valid_sheet:
+                sheet_name = valid_sheet
+                logger.info(f"No sheet specified, using first valid month sheet: {sheet_name}")
+            else:
+                # Fallback to the first sheet if no valid month sheet found
+                sheet_name = sheet_names[0]
+                logger.warning(f"No valid month sheet found, using first sheet: {sheet_name}")
         elif sheet_name not in sheet_names:
             available_sheets = ", ".join(sheet_names)
             raise Exception(f"Sheet '{sheet_name}' not found. Available sheets: {available_sheets}")
