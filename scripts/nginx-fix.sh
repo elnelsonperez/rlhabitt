@@ -58,7 +58,7 @@ server {
     server_name $SERVER_NAME;
 
     # API endpoint - don't redirect to HTTPS
-    location /api/ {
+    location / {
         proxy_pass http://localhost:5052;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -69,7 +69,7 @@ server {
     # For all other paths, redirect to HTTPS
     location / {
         # Optional: remove this if you don't want any redirects
-        return 301 https://\$server_name\$request_uri;
+        # return 301 https://\$server_name\$request_uri;
     }
 }
 
