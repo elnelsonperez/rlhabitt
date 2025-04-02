@@ -33,7 +33,7 @@ def run_import_job(correlation_id, file_path, months=2):
     """
     try:
         # Create the parser
-        parser = CondoRentalParser(file_path)
+        parser = CondoRentalParser(file_path, verbose=True)
         
         if not parser.load_workbook():
             logger.error(f"Import {correlation_id}: Failed to load workbook")
