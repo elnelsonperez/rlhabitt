@@ -3,7 +3,6 @@
 Import reservation data from JSON files to PostgreSQL database.
 """
 
-import os
 import sys
 import json
 import logging
