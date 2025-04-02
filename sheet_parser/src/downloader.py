@@ -2,8 +2,9 @@ import os
 import requests
 import logging
 from .auth import OneDriveAuth
+from .logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class OneDriveDownloader:
     def __init__(self, verbose=False):

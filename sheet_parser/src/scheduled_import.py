@@ -9,7 +9,6 @@ import os
 import sys
 import uuid
 import tempfile
-import logging
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -20,20 +19,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from src.downloader import OneDriveDownloader
 from src.api.import_routes import run_import_job
 from src.postgres_importer import PostgresImporter
+from src.logger import get_logger
 
-# Configure logging
-log_file = os.getenv('LOG_FILE_PATH', '/var/log/sheet_parser/scheduled_import.log')
-os.makedirs(os.path.dirname(log_file), exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file, mode='a')
-    ]
-)
-logger = logging.getLogger(__name__)
+# Get configured logger
+logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()

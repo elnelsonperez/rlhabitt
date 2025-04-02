@@ -4,13 +4,15 @@ import json
 import argparse
 import logging
 from dotenv import load_dotenv
+
+from src.logger import get_logger
 from .downloader import OneDriveDownloader
 from .xlsx_parser import CondoRentalParser
 
 # Load environment variables from .env file
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class JSONEncoder(json.JSONEncoder):
     """Custom JSON encoder to handle date objects"""

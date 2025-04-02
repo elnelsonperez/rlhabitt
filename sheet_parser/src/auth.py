@@ -1,13 +1,14 @@
 import msal
 import os
-import logging
 from pathlib import Path
 from dotenv import load_dotenv
+
+from src.logger import get_logger
 
 # Load environment variables from .env file
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class OneDriveAuth:
     def __init__(self, cache_file=None, verbose=False):

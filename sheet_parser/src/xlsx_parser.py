@@ -6,8 +6,9 @@ import logging
 from pathlib import Path
 from datetime import date
 
-logger = logging.getLogger(__name__)
+from src.logger import get_logger
 
+logger = get_logger(__name__)
 
 # Color legend for the condo rental system
 # the first element is the color code, the second is the theme color index if applicable

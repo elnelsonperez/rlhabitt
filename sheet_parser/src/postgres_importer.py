@@ -1,15 +1,15 @@
 import os
 import json
 import uuid
-import logging
 from datetime import datetime
 from typing import Dict, Optional, Union
 
 # SQLAlchemy imports
 from sqlalchemy import create_engine, MetaData, select, insert, update, text
 
+from src.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class PostgresImporter:
     """
