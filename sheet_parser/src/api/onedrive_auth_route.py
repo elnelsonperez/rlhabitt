@@ -1,7 +1,8 @@
 """OneDrive authentication route for RL HABITT backend."""
-import os
 import logging
 from flask import Blueprint, render_template_string, url_for
+
+from .auth import requires_auth
 from ..auth import OneDriveAuth
 
 # Configure logging
@@ -14,6 +15,7 @@ onedrive_auth_bp = Blueprint('onedrive_auth', __name__, url_prefix='/setup/onedr
 device_flow_message = None
 
 @onedrive_auth_bp.route('/', methods=['GET'])
+@requires_auth
 def start_auth():
     """Start the OneDrive authentication flow"""
     # Simple HTML page with instructions and a button to start auth
@@ -71,6 +73,7 @@ def start_auth():
     return render_template_string(html, url_for=url_for)
 
 @onedrive_auth_bp.route('/auth-device', methods=['GET'])
+@requires_auth
 def auth_device():
     """Start the device authentication flow and show the code to the user"""
     global device_flow_message
