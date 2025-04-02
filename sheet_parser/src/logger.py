@@ -5,7 +5,6 @@ This module provides a consistent logging setup for the entire application.
 import os
 import sys
 import logging
-from datetime import datetime
 
 # Default log format
 DEFAULT_LOG_FORMAT = '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -19,6 +18,19 @@ LOG_LEVELS = {
     'ERROR': logging.ERROR,
     'CRITICAL': logging.CRITICAL
 }
+
+# Track if the basic config has been disabled
+_basic_logging_disabled = False
+
+def disable_basic_logging():
+    """Disable the basic logging configuration to prevent duplicate logs."""
+    global _basic_logging_disabled
+    if not _basic_logging_disabled:
+        # Remove all handlers from the root logger
+        root = logging.getLogger()
+        for handler in root.handlers[:]:
+            root.removeHandler(handler)
+        _basic_logging_disabled = True
 
 def get_log_level():
     """Get log level from environment or default to INFO."""
@@ -37,11 +49,17 @@ def setup_logger(name, log_file=None):
     Returns:
         A configured logger instance
     """
+    # First disable any basic logging config
+    disable_basic_logging()
+    
     logger = logging.getLogger(name)
     
-    # Avoid adding handlers if they already exist
-    if logger.handlers:
-        return logger
+    # Remove any existing handlers to avoid duplicates
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Prevent propagation to the root logger
+    logger.propagate = False
     
     # Set log level
     logger.setLevel(get_log_level())
