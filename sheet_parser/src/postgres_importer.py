@@ -277,12 +277,11 @@ class PostgresImporter:
     def get_existing_booking_by_comment(self, conn, apartment_id: str, comment: Optional[str]) -> Optional[str]:
         """
         Check if there's an existing booking for a specific apartment and comment.
-        Reservations with the same comment are considered part of the same booking.
         
         Args:
             conn: Database connection
             apartment_id: Apartment UUID
-            comment: Reservation comment
+            comment: Booking comment
             
         Returns:
             str: Booking UUID or None if not found
@@ -290,10 +289,10 @@ class PostgresImporter:
         if not comment:
             return None
         
-        # Execute a query to find a booking ID by comment
-        query = select(self.reservations.c.booking_id).where(
-            (self.reservations.c.apartment_id == apartment_id) &
-            (self.reservations.c.comment == comment)
+        # Execute a query to find a booking ID by apartment_id and comment
+        query = select(self.bookings.c.id).where(
+            (self.bookings.c.apartment_id == apartment_id) &
+            (self.bookings.c.comment == comment)
         ).limit(1)
         
         result = conn.execute(query).first()
@@ -306,7 +305,7 @@ class PostgresImporter:
     def create_booking(self, conn, apartment_id: str, guest_id: Optional[str] = None, 
                       check_in_date: str = None, check_out_date: Optional[str] = None,
                       rate: float = 0.0, payment_source_id: Optional[str] = None,
-                      total_amount: Optional[float] = None) -> str:
+                      total_amount: Optional[float] = None, comment: Optional[str] = None) -> str:
         """
         Create a new booking with check_in and optional check_out dates.
         
@@ -319,6 +318,7 @@ class PostgresImporter:
             rate: Nightly rate (default 0.0)
             payment_source_id: Payment source UUID (may be None)
             total_amount: Total booking amount (may be None, parsed from comment)
+            comment: Booking comment (may be None)
             
         Returns:
             str: Created booking UUID
@@ -328,6 +328,9 @@ class PostgresImporter:
             'id': booking_id,
             'apartment_id': apartment_id
         }
+        
+        if comment:
+            values['comment'] = comment
         
         if check_in_date:
             values['check_in'] = check_in_date
@@ -363,6 +366,8 @@ class PostgresImporter:
             
         if payment_source_id:
             values['payment_source_id'] = payment_source_id
+            
+        # Payment status removed from schema
             
         conn.execute(
             insert(self.bookings).values(**values)
@@ -583,7 +588,8 @@ class PostgresImporter:
                     check_out_date=check_out_date,
                     rate=rate,
                     payment_source_id=payment_source_id,
-                    total_amount=total_amount
+                    total_amount=total_amount,
+                    comment=comment
                 )
             
             # Process all reservations in the group
@@ -653,6 +659,8 @@ class PostgresImporter:
         - Total USD: $1620.00
         - Total: 642
         - Total USD: $1,075.00
+        - Total: US$1,185
+        - Total: US$1,262.05
         
         Args:
             comment: Reservation comment
@@ -669,7 +677,7 @@ class PostgresImporter:
         # Patterns to match:
         # 1. Case insensitive "total" followed by optional currency indicators
         # 2. Followed by a colon (with optional spaces)
-        # 3. Followed by an optional dollar sign
+        # 3. Followed by optional currency indicators (US$, USD, $)
         # 4. Followed by a number which may include commas and a decimal point
         import re
         
@@ -677,7 +685,9 @@ class PostgresImporter:
             # Match "total" (case insensitive) followed by various optional text and then a number
             r'(?i)total(?:\s*(?:US)?(?:\$|USD)?)?(?:\s*:)\s*\$?\s*([\d,\.]+)',
             # Alternative format with dollar sign after "USD"
-            r'(?i)total\s+USD\s*\$?\s*:?\s*([\d,\.]+)'
+            r'(?i)total\s+USD\s*\$?\s*:?\s*([\d,\.]+)',
+            # Format with US$ after the colon
+            r'(?i)total\s*:\s*US\$\s*([\d,\.]+)'
         ]
         
         # Try to match the patterns in each line
@@ -776,7 +786,8 @@ class PostgresImporter:
                 guest_id=guest_id,
                 check_in_date=date_str,  # We'll update this later if needed
                 rate=rate,
-                payment_source_id=payment_source_id
+                payment_source_id=payment_source_id,
+                comment=comment
             )
             
         # Create or update the reservation

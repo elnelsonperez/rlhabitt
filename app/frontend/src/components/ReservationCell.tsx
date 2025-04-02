@@ -50,12 +50,12 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
     return `$${rate}`;
   }
   
-  // Handle click to navigate to reservation detail
+  // Handle click to navigate to booking detail
   const handleClick = () => {
-    if (reservation) {
+    if (reservation && reservation.booking_id) {
       navigate({
-        to: '/reservations/$reservationId',
-        params: { reservationId: reservation.id },
+        to: '/bookings/$bookingId',
+        params: { bookingId: reservation.booking_id },
       })
     }
   }

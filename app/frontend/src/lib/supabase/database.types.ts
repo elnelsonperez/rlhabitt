@@ -65,12 +65,12 @@ export type Database = {
           apartment_id: string
           check_in: string
           check_out: string | null
+          comment: string | null
           created_at: string | null
           guest_id: string | null
           id: string
           nights: number | null
           payment_source_id: string | null
-          payment_status: string | null
           reference_code: string | null
           total_amount: number | null
           updated_at: string | null
@@ -79,12 +79,12 @@ export type Database = {
           apartment_id: string
           check_in: string
           check_out?: string | null
+          comment?: string | null
           created_at?: string | null
           guest_id?: string | null
           id?: string
           nights?: number | null
           payment_source_id?: string | null
-          payment_status?: string | null
           reference_code?: string | null
           total_amount?: number | null
           updated_at?: string | null
@@ -93,12 +93,12 @@ export type Database = {
           apartment_id?: string
           check_in?: string
           check_out?: string | null
+          comment?: string | null
           created_at?: string | null
           guest_id?: string | null
           id?: string
           nights?: number | null
           payment_source_id?: string | null
-          payment_status?: string | null
           reference_code?: string | null
           total_amount?: number | null
           updated_at?: string | null

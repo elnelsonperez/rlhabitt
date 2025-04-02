@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { LoginPage } from './pages/Login'
 import { ReservationsGridPage } from './pages/ReservationsGrid'
-import { ReservationDetailPage } from './pages/ReservationDetail'
+import { BookingDetailPage } from './pages/BookingDetail'
 import { ImportPage } from './pages/Import'
 import { useAuthStore } from './store/auth'
 import { AppLayout } from './components/Layout'
@@ -67,11 +67,12 @@ const reservationsGridRoute = createRoute({
   }
 })
 
-// Reservation detail page (protected by layout)
-const reservationDetailRoute = createRoute({
+
+// Booking detail page (protected by layout)
+const bookingDetailRoute = createRoute({
   getParentRoute: () => layoutRoute,
-  path: '/reservations/$reservationId',
-  component: ReservationDetailPage,
+  path: '/bookings/$bookingId',
+  component: BookingDetailPage,
 })
 
 // Import page (protected by layout)
@@ -100,7 +101,7 @@ const routeTree = rootRoute.addChildren([
   layoutRoute.addChildren([
     homeRoute,
     reservationsGridRoute,
-    reservationDetailRoute,
+    bookingDetailRoute,
     importRoute,
   ]),
   loginRoute,

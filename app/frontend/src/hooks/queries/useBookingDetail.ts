@@ -12,59 +12,56 @@ export type OwnerRow = Database['public']['Tables']['owners']['Row']
 export type GuestRow = Database['public']['Tables']['guests']['Row']
 export type PaymentSourceRow = Database['public']['Tables']['payment_sources']['Row']
 
-export interface ReservationDetailData {
-  reservation: ReservationRow | null
+export interface BookingDetailData {
   booking: BookingRow | null
   apartment: ApartmentRow | null
   building: BuildingRow | null
   owner: OwnerRow | null
   guest: GuestRow | null
   payment_source: PaymentSourceRow | null
+  reservations: ReservationRow[] | null
 }
 
 /**
- * Custom hook to fetch detailed reservation data
+ * Custom hook to fetch detailed booking data
  */
-export function useReservationDetail(reservationId: string | undefined) {
+export function useBookingDetail(bookingId: string | undefined) {
   const { isAuthenticated } = useAuthStore()
   
   return useQuery({
-    queryKey: ['reservation', reservationId],
+    queryKey: ['booking', bookingId],
     queryFn: async () => {
       if (!isAuthenticated) {
         throw new Error('Authentication required')
       }
       
       // Define a type for the nested join query result
-      type ReservationWithRelations = ReservationRow & {
-        booking: BookingRow & {
-          guest: GuestRow;
-          payment_source: PaymentSourceRow;
-        };
+      type BookingWithRelations = BookingRow & {
         apartment: ApartmentRow & {
           building: BuildingRow;
           owner: OwnerRow;
         };
+        guest: GuestRow;
+        payment_source: PaymentSourceRow;
+        reservations: ReservationRow[];
       };
       
-      // Fetch reservation with all related data
+      // Fetch booking with all related data
       const { data, error } = await supabase
-        .from('reservations')
+        .from('bookings')
         .select(`
-          id, date, rate, color_hex, comment, apartment_id, booking_id, created_at, updated_at,
-          booking:booking_id(
-            id, check_in, check_out, nights, total_amount, payment_status, reference_code, 
-            apartment_id, guest_id, payment_source_id, created_at, updated_at,
-            guest:guest_id(id, name, email, phone, notes, created_at, updated_at),
-            payment_source:payment_source_id(id, name, description, active, created_at, updated_at)
-          ),
+          id, check_in, check_out, nights, total_amount, reference_code, 
+          comment, apartment_id, guest_id, payment_source_id, created_at, updated_at,
           apartment:apartment_id(
             id, code, raw_text, building_id, owner_id, active, description, created_at, updated_at,
             building:building_id(id, name, description, location, active, created_at, updated_at),
             owner:owner_id(id, name, email, phone, notes, active, created_at, updated_at)
-          )
+          ),
+          guest:guest_id(id, name, email, phone, notes, created_at, updated_at),
+          payment_source:payment_source_id(id, name, description, active, created_at, updated_at),
+          reservations:id(id, date, rate, color_hex, comment, apartment_id, created_at, updated_at)
         `)
-        .eq('id', reservationId as string)
+        .eq('id', bookingId as string)
         .single()
         
       if (error) {
@@ -72,21 +69,21 @@ export function useReservationDetail(reservationId: string | undefined) {
       }
       
       // Cast the result to our typed structure
-      const typedData = data as unknown as ReservationWithRelations;
+      const typedData = data as unknown as BookingWithRelations;
       
-      // Format the data into our ReservationDetailData structure
-      const formattedData: ReservationDetailData = {
-        reservation: typedData,
-        booking: typedData.booking,
+      // Format the data into our BookingDetailData structure
+      const formattedData: BookingDetailData = {
+        booking: typedData,
         apartment: typedData.apartment,
         building: typedData.apartment?.building,
         owner: typedData.apartment?.owner,
-        guest: typedData.booking?.guest,
-        payment_source: typedData.booking?.payment_source
+        guest: typedData.guest,
+        payment_source: typedData.payment_source,
+        reservations: typedData.reservations
       }
       
       return formattedData
     },
-    enabled: isAuthenticated && !!reservationId
+    enabled: isAuthenticated && !!bookingId
   })
 }
