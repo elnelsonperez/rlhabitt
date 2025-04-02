@@ -63,43 +63,83 @@ echo_color "Updating system packages..." "$BLUE"
 apt-get update && apt-get upgrade -y
 
 # Install dependencies
-echo_color "Installing dependencies..." "$BLUE"
-apt-get install -y \
-  apt-transport-https \
-  ca-certificates \
-  curl \
-  gnupg \
-  lsb-release \
-  git \
-  ufw
+echo_color "Checking and installing dependencies..." "$BLUE"
 
-# Add Docker's official GPG key
-echo_color "Setting up Docker repository..." "$BLUE"
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+# Check if dependencies are already installed
+MISSING_DEPS=()
+for pkg in apt-transport-https ca-certificates curl gnupg lsb-release git ufw; do
+  if ! dpkg -l | grep -q "^ii  $pkg "; then
+    MISSING_DEPS+=($pkg)
+  fi
+done
 
-# Set up the stable repository
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+# Install missing dependencies if any
+if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+  echo_color "Installing missing dependencies: ${MISSING_DEPS[*]}" "$BLUE"
+  apt-get install -y ${MISSING_DEPS[*]}
+else
+  echo_color "All dependencies are already installed." "$GREEN"
+fi
 
-# Install Docker Engine
-echo_color "Installing Docker..." "$BLUE"
-apt-get update
-apt-get install -y docker-ce docker-ce-cli containerd.io
+# Check if Docker is already installed
+if command -v docker &> /dev/null && systemctl is-active --quiet docker; then
+  echo_color "Docker is already installed and running." "$GREEN"
+else
+  echo_color "Installing Docker..." "$BLUE"
+  
+  # Check if Docker repository is already configured
+  if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
+    # Add Docker's official GPG key
+    echo_color "Setting up Docker repository..." "$BLUE"
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    
+    # Set up the stable repository
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Update package lists after adding new repository
+    apt-get update
+  fi
+  
+  # Install Docker Engine
+  apt-get install -y docker-ce docker-ce-cli containerd.io
+  systemctl enable docker
+  systemctl start docker
+fi
 
-# Install Docker Compose
-echo_color "Installing Docker Compose..." "$BLUE"
-curl -L "https://github.com/docker/compose/releases/download/v2.12.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+# Check if Docker Compose is already installed
+if command -v docker-compose &> /dev/null; then
+  CURRENT_VERSION=$(docker-compose --version | sed 's/.*version \([0-9.]*\).*/\1/' | grep -o '^[0-9.]*')
+  REQUIRED_VERSION="2.12.2"
+  
+  if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$CURRENT_VERSION" | sort -V | head -n1)" = "$REQUIRED_VERSION" ]; then
+    echo_color "Docker Compose $CURRENT_VERSION is already installed." "$GREEN"
+  else
+    echo_color "Updating Docker Compose from $CURRENT_VERSION to $REQUIRED_VERSION..." "$BLUE"
+    curl -L "https://github.com/docker/compose/releases/download/v$REQUIRED_VERSION/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+  fi
+else
+  echo_color "Installing Docker Compose..." "$BLUE"
+  curl -L "https://github.com/docker/compose/releases/download/v2.12.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  chmod +x /usr/local/bin/docker-compose
+fi
 
 # Create deployment directory
 DEPLOY_DIR="/opt/rlhabitt"
-echo_color "Creating deployment directory at $DEPLOY_DIR..." "$BLUE"
-mkdir -p $DEPLOY_DIR
+echo_color "Checking deployment directory at $DEPLOY_DIR..." "$BLUE"
+if [ ! -d "$DEPLOY_DIR" ]; then
+  echo_color "Creating deployment directory..." "$BLUE"
+  mkdir -p $DEPLOY_DIR
+else
+  echo_color "Deployment directory already exists." "$GREEN"
+fi
+
 cd $DEPLOY_DIR
 
-# Create .env file
-echo_color "Creating .env file..." "$BLUE"
+# Create or update .env file
+echo_color "Creating/updating .env file..." "$BLUE"
 cat > .env << EOF
 SUPABASE_URL=${SUPABASE_URL}
 SUPABASE_KEY=${SUPABASE_KEY}
@@ -109,26 +149,48 @@ ONEDRIVE_FILE_ID=${ONEDRIVE_FILE_ID}
 ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
 EOF
 
-# Clone repository
-echo_color "Cloning repository..." "$BLUE"
-if [ -d "sheet_parser" ]; then
-  # If the directory exists, pull the latest changes
-  cd sheet_parser
-  git pull
-  cd ..
-else
-  # Otherwise, clone the repository
-  # Note: Replace with your actual repository URL
-  git clone https://github.com/elnelsonperez/rlhabitt .
-fi
+# Repository pull
+echo_color "Repository already exists, updating..." "$BLUE"
+cd sheet_parser
+git config --global --add safe.directory "$(pwd)"
+git pull
+cd ..
 
-# Configure firewall
+# Configure firewall if UFW is active
 echo_color "Configuring firewall..." "$BLUE"
-ufw allow 22/tcp  # SSH
-ufw allow 80/tcp  # HTTP
-ufw allow 443/tcp # HTTPS
-ufw allow 5052/tcp # API port
-ufw --force enable
+if systemctl is-active --quiet ufw; then
+  echo_color "UFW is active, checking rules..." "$BLUE"
+  
+  # Add rules only if they don't exist
+  if ! ufw status | grep -q "22/tcp"; then
+    echo_color "Adding SSH rule..." "$BLUE"
+    ufw allow 22/tcp  # SSH
+  fi
+  
+  if ! ufw status | grep -q "80/tcp"; then
+    echo_color "Adding HTTP rule..." "$BLUE"
+    ufw allow 80/tcp  # HTTP
+  fi
+  
+  if ! ufw status | grep -q "443/tcp"; then
+    echo_color "Adding HTTPS rule..." "$BLUE"
+    ufw allow 443/tcp # HTTPS
+  fi
+  
+  if ! ufw status | grep -q "5052/tcp"; then
+    echo_color "Adding API port rule..." "$BLUE"
+    ufw allow 5052/tcp # API port
+  fi
+  
+  echo_color "Firewall rules updated." "$GREEN"
+else
+  echo_color "Enabling UFW with required rules..." "$BLUE"
+  ufw allow 22/tcp  # SSH
+  ufw allow 80/tcp  # HTTP
+  ufw allow 443/tcp # HTTPS
+  ufw allow 5052/tcp # API port
+  ufw --force enable
+fi
 
 # Build and start the Docker containers
 echo_color "Building and starting Docker containers..." "$BLUE"
@@ -152,11 +214,20 @@ fi
 
 # Add NGINX for production (optional)
 if [ "$SETUP_NGINX" = "true" ]; then
-  echo_color "Setting up NGINX as a reverse proxy..." "$BLUE"
-  apt-get install -y nginx certbot python3-certbot-nginx
+  # Check if NGINX is installed
+  if ! command -v nginx &> /dev/null; then
+    echo_color "Installing NGINX and Certbot..." "$BLUE"
+    apt-get install -y nginx certbot python3-certbot-nginx
+  else
+    echo_color "NGINX is already installed." "$GREEN"
+  fi
   
-  # Configure NGINX
-  cat > /etc/nginx/sites-available/rlhabitt << EOF
+  # Check if the NGINX configuration already exists
+  if [ ! -f "/etc/nginx/sites-available/rlhabitt" ] || [ "$FORCE_NGINX_CONFIG" = "true" ]; then
+    echo_color "Creating NGINX configuration..." "$BLUE"
+    
+    # Configure NGINX
+    cat > /etc/nginx/sites-available/rlhabitt << EOF
 server {
     listen 80;
     server_name ${DOMAIN_NAME};
@@ -171,16 +242,42 @@ server {
 }
 EOF
 
-  # Enable the site
-  ln -sf /etc/nginx/sites-available/rlhabitt /etc/nginx/sites-enabled/
+    # Enable the site if not already enabled
+    if [ ! -f "/etc/nginx/sites-enabled/rlhabitt" ]; then
+      echo_color "Enabling NGINX site..." "$BLUE"
+      ln -sf /etc/nginx/sites-available/rlhabitt /etc/nginx/sites-enabled/
+    fi
+    
+    # Test and reload NGINX
+    if nginx -t; then
+      echo_color "NGINX configuration is valid, reloading..." "$GREEN"
+      systemctl reload nginx
+    else
+      echo_color "NGINX configuration test failed, please check the configuration." "$RED"
+      exit 1
+    fi
+  else
+    echo_color "NGINX configuration already exists." "$GREEN"
+  fi
   
-  # Test and reload NGINX
-  nginx -t && systemctl reload nginx
-  
-  # Set up SSL if domain is provided
-  if [ -n "$DOMAIN_NAME" ]; then
+  # Set up SSL if domain is provided and not already configured
+  if [ -n "$DOMAIN_NAME" ] && [ "$FORCE_SSL" = "true" ] || ! grep -q "ssl_certificate" "/etc/nginx/sites-available/rlhabitt"; then
+    if [ -z "$EMAIL" ]; then
+      echo_color "EMAIL environment variable is required for SSL setup." "$RED"
+      echo_color "Please set the EMAIL variable and try again, or set FORCE_SSL=false." "$YELLOW"
+      exit 1
+    fi
+    
     echo_color "Setting up SSL with Let's Encrypt for $DOMAIN_NAME..." "$BLUE"
     certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos -m $EMAIL
+    
+    if [ $? -eq 0 ]; then
+      echo_color "SSL setup successful." "$GREEN"
+    else
+      echo_color "SSL setup failed. Check the certbot logs for details." "$RED"
+    fi
+  elif [ -n "$DOMAIN_NAME" ]; then
+    echo_color "SSL appears to be already configured. Set FORCE_SSL=true to force reconfiguration." "$GREEN"
   fi
 fi
 
