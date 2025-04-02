@@ -26,12 +26,9 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
       - ONEDRIVE_FILE_ID=${ONEDRIVE_FILE_ID}
+      - ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
       - IMPORT_MONTHS=2
       - LOG_FILE_PATH=/var/log/sheet_parser/scheduled_import.log
-      # OneDrive credentials
-      - TENANT_ID=${TENANT_ID}
-      - CLIENT_ID=${CLIENT_ID}
-      - CLIENT_SECRET=${CLIENT_SECRET}
     volumes:
       - sheet_parser_logs:/var/log/sheet_parser
     # Run the import every day at 2am

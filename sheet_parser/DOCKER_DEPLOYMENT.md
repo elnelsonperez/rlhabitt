@@ -80,9 +80,7 @@ SUPABASE_KEY=your-supabase-service-role-key
 API_USERNAME=your-api-username
 API_PASSWORD=your-api-password
 ONEDRIVE_FILE_ID=your-onedrive-file-id
-TENANT_ID=your-azure-tenant-id
-CLIENT_ID=your-azure-client-id
-CLIENT_SECRET=your-azure-client-secret
+ONEDRIVE_CLIENT_ID=your-onedrive-client-id
 ```
 
 ### 5. Build and Start the Services

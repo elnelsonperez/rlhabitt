@@ -33,9 +33,7 @@ REQUIRED_VARS=(
   "API_USERNAME"
   "API_PASSWORD"
   "ONEDRIVE_FILE_ID"
-  "TENANT_ID"
-  "CLIENT_ID"
-  "CLIENT_SECRET"
+  "ONEDRIVE_CLIENT_ID"
 )
 
 MISSING_VARS=0
@@ -55,9 +53,7 @@ if [ $MISSING_VARS -eq 1 ]; then
   echo "API_USERNAME=your-api-username"
   echo "API_PASSWORD=your-api-password"
   echo "ONEDRIVE_FILE_ID=your-onedrive-file-id"
-  echo "TENANT_ID=your-azure-tenant-id"
-  echo "CLIENT_ID=your-azure-client-id"
-  echo "CLIENT_SECRET=your-azure-client-secret"
+  echo "ONEDRIVE_CLIENT_ID=your-onedrive-client-id"
   echo ""
   exit 1
 fi
@@ -110,9 +106,7 @@ SUPABASE_KEY=${SUPABASE_KEY}
 API_USERNAME=${API_USERNAME}
 API_PASSWORD=${API_PASSWORD}
 ONEDRIVE_FILE_ID=${ONEDRIVE_FILE_ID}
-TENANT_ID=${TENANT_ID}
-CLIENT_ID=${CLIENT_ID}
-CLIENT_SECRET=${CLIENT_SECRET}
+ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
 EOF
 
 # Clone repository
