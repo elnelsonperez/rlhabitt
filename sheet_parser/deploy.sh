@@ -138,6 +138,19 @@ fi
 
 cd $DEPLOY_DIR
 
+# Clone or pull from repository
+if [ -d "sheet_parser" ]; then
+  echo_color "Repository already exists, updating..." "$BLUE"
+  cd sheet_parser
+  git config --global --add safe.directory "$(pwd)"
+  git pull
+  cd ..
+else
+  echo_color "Cloning repository..." "$BLUE"
+  # Clone the repository from your GitHub/GitLab
+  git clone https://github.com/elnelsonperez/rlhabitt .
+fi
+
 # Create or update .env file
 echo_color "Creating/updating .env file..." "$BLUE"
 cat > .env << EOF
@@ -149,12 +162,6 @@ ONEDRIVE_FILE_ID=${ONEDRIVE_FILE_ID}
 ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
 EOF
 
-# Repository pull
-echo_color "Repository already exists, updating..." "$BLUE"
-cd sheet_parser
-git config --global --add safe.directory "$(pwd)"
-git pull
-cd ..
 
 # Configure firewall if UFW is active
 echo_color "Configuring firewall..." "$BLUE"
