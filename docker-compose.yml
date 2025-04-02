@@ -13,6 +13,7 @@ services:
       - SUPABASE_KEY=${SUPABASE_KEY}
       - API_USERNAME=${API_USERNAME}
       - API_PASSWORD=${API_PASSWORD}
+      - DATABASE_URL=${DATABASE_URL}
       - ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
       - ONEDRIVE_TOKEN_PATH=/app/token_cache
     volumes:
@@ -31,6 +32,7 @@ services:
       - ONEDRIVE_FILE_ID=${ONEDRIVE_FILE_ID}
       - ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
       - ONEDRIVE_TOKEN_PATH=/app/token_cache
+      - DATABASE_URL=${DATABASE_URL}
       - IMPORT_MONTHS=2
       - LOG_FILE_PATH=/var/log/sheet_parser/scheduled_import.log
     volumes:
