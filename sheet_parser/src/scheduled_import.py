@@ -11,6 +11,7 @@ import uuid
 import tempfile
 from datetime import datetime
 from dotenv import load_dotenv
+from sqlalchemy import text
 
 # Configure path to find project modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -70,7 +71,7 @@ def run_scheduled_import():
                     WHERE correlation_id = :correlation_id
                     GROUP BY correlation_id
                 """
-                result = conn.execute(query, {"correlation_id": correlation_id}).first()
+                result = conn.execute(text(query), {"correlation_id": correlation_id}).first()
                 
                 if result:
                     logger.info(f"Import completed: total={result[1]}, success={result[2]}, failed={result[3]}")
