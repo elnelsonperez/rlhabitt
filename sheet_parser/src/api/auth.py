@@ -1,16 +1,17 @@
 """Authentication for the API using Supabase."""
 import os
 import functools
-import logging
-from flask import request, Response, jsonify
+from flask import request, Response
 from dotenv import load_dotenv
 from supabase import create_client, Client
+
+from src.logger import get_logger
 
 # Load environment variables
 load_dotenv()
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Get Supabase credentials from environment variables
 SUPABASE_URL = os.getenv("SUPABASE_URL")
