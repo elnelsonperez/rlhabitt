@@ -7,6 +7,7 @@ import threading
 from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_cors import cross_origin
+from sqlalchemy import text
 
 from .auth import requires_auth
 from ..downloader import OneDriveDownloader
@@ -257,7 +258,7 @@ def get_import_status(correlation_id):
                 WHERE correlation_id = :correlation_id
                 GROUP BY correlation_id
             """
-            result = conn.execute(query, {"correlation_id": correlation_id}).first()
+            result = conn.execute(text(query), {"correlation_id": correlation_id}).first()
             
             if result:
                 return jsonify({
