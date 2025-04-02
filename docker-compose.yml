@@ -14,8 +14,10 @@ services:
       - API_USERNAME=${API_USERNAME}
       - API_PASSWORD=${API_PASSWORD}
       - ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
+      - ONEDRIVE_TOKEN_PATH=/app/token_cache
     volumes:
       - sheet_parser_logs:/var/log/sheet_parser
+      - onedrive_tokens:/app/token_cache
     command: gunicorn --bind 0.0.0.0:5000 --timeout 300 --workers 3 wsgi:app
 
   # Scheduled Import Service
@@ -28,10 +30,12 @@ services:
       - SUPABASE_KEY=${SUPABASE_KEY}
       - ONEDRIVE_FILE_ID=${ONEDRIVE_FILE_ID}
       - ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
+      - ONEDRIVE_TOKEN_PATH=/app/token_cache
       - IMPORT_MONTHS=2
       - LOG_FILE_PATH=/var/log/sheet_parser/scheduled_import.log
     volumes:
       - sheet_parser_logs:/var/log/sheet_parser
+      - onedrive_tokens:/app/token_cache
     # Run the import every day at 2am
     entrypoint: /bin/bash
     command: >
@@ -42,3 +46,4 @@ services:
 
 volumes:
   sheet_parser_logs:
+  onedrive_tokens:

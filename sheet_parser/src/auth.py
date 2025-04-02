@@ -23,7 +23,22 @@ class OneDriveAuth:
         logger.debug(f"Auth scopes: {self.scope}")
         
         # Set up token cache
-        self.cache_file = cache_file or os.path.join(str(Path.home()), '.onedrive_token_cache.json')
+        # Check environment variable for token path first, fall back to Docker volume path,
+        # then use provided cache_file or default to home dir
+        env_token_path = os.environ.get('ONEDRIVE_TOKEN_PATH')
+        docker_token_path = '/app/token_cache'
+        
+        if env_token_path and os.path.exists(env_token_path) and os.access(env_token_path, os.W_OK):
+            default_cache_path = os.path.join(env_token_path, 'onedrive_token_cache.json')
+            logger.debug(f"Using environment-specified token path: {env_token_path}")
+        elif os.path.exists(docker_token_path) and os.access(docker_token_path, os.W_OK):
+            default_cache_path = os.path.join(docker_token_path, 'onedrive_token_cache.json')
+            logger.debug(f"Using Docker volume token path: {docker_token_path}")
+        else:
+            default_cache_path = os.path.join(str(Path.home()), '.onedrive_token_cache.json')
+            logger.debug("Using home directory for token cache")
+            
+        self.cache_file = cache_file or default_cache_path
         logger.debug(f"Using token cache file: {self.cache_file}")
         self.token_cache = msal.SerializableTokenCache()
         
@@ -42,9 +57,12 @@ class OneDriveAuth:
         """Save the token cache to file"""
         if self.token_cache.has_state_changed:
             try:
+                # Ensure parent directory exists
+                os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
+                
                 with open(self.cache_file, 'w') as cache_file:
                     cache_file.write(self.token_cache.serialize())
-                logger.debug("Token cache saved successfully")
+                logger.debug(f"Token cache saved successfully to {self.cache_file}")
             except Exception as e:
                 logger.error(f"Error saving token cache: {e}")
     
