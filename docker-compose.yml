@@ -34,17 +34,19 @@ services:
       - ONEDRIVE_TOKEN_PATH=/app/token_cache
       - DATABASE_URL=${DATABASE_URL}
       - IMPORT_MONTHS=2
-      - LOG_FILE_PATH=/var/log/sheet_parser/scheduled_import.log
+      - LOG_FILE_PATH=/proc/1/fd/1
     volumes:
       - sheet_parser_logs:/var/log/sheet_parser
       - onedrive_tokens:/app/token_cache
-    # Run the import every day at 2am
     entrypoint: /bin/bash
     command: >
-      -c "echo '0 * * * * cd /app && python -m src.scheduled_import >> /var/log/sheet_parser/cron.log 2>&1' > /etc/cron.d/import-cron &&
-          chmod 0644 /etc/cron.d/import-cron &&
-          crontab /etc/cron.d/import-cron &&
-          cron -f"
+      -c "echo 'Scheduler container started. Running import script every 10 minutes.' &&
+          while true; do
+            echo '[SCHEDULER] Running scheduled import at $(date)'
+            cd /app && python -m src.scheduled_import
+            echo '[SCHEDULER] Waiting for next run...'
+            sleep 600
+          done"
 
 volumes:
   sheet_parser_logs:
