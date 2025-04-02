@@ -67,10 +67,10 @@ server {
     }
 
     # For all other paths, redirect to HTTPS
-    location / {
+    #location / {
         # Optional: remove this if you don't want any redirects
         # return 301 https://\$server_name\$request_uri;
-    }
+    #}
 }
 
 # HTTPS server block (this might already exist from Certbot)
