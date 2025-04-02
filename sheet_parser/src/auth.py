@@ -1,6 +1,5 @@
 import msal
 import os
-import json
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
