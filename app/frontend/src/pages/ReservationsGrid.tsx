@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useBuildings, useReservations } from '../hooks/queries/useReservations'
+import { useReservations } from '../hooks/queries/useReservations'
+import { useBuildings } from '../hooks/queries/useBuildings'
 import { ReservationCell } from '../components/ReservationCell'
 import { TimeframeSelector } from '../components/TimeframeSelector'
 import { useNavigate, useSearch } from '@tanstack/react-router'
