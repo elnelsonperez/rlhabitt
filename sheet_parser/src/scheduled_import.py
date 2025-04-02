@@ -22,12 +22,15 @@ from src.api.import_routes import run_import_job
 from src.postgres_importer import PostgresImporter
 
 # Configure logging
+log_file = os.getenv('LOG_FILE_PATH', '/var/log/sheet_parser/scheduled_import.log')
+os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('scheduled_import.log')
+        logging.FileHandler(log_file, mode='a')
     ]
 )
 logger = logging.getLogger(__name__)

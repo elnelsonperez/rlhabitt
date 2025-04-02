@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # API Service
+  api:
+    build:
+      context: ./sheet_parser
+    restart: always
+    ports:
+      - "5052:5000"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - API_USERNAME=${API_USERNAME}
+      - API_PASSWORD=${API_PASSWORD}
+    volumes:
+      - sheet_parser_logs:/var/log/sheet_parser
+    command: gunicorn --bind 0.0.0.0:5000 wsgi:app
+
+  # Scheduled Import Service
+  scheduler:
+    build:
+      context: ./sheet_parser
+    restart: always
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - ONEDRIVE_FILE_ID=${ONEDRIVE_FILE_ID}
+      - IMPORT_MONTHS=2
+      - LOG_FILE_PATH=/var/log/sheet_parser/scheduled_import.log
+      # OneDrive credentials
+      - TENANT_ID=${TENANT_ID}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    volumes:
+      - sheet_parser_logs:/var/log/sheet_parser
+    # Run the import every day at 2am
+    entrypoint: /bin/bash
+    command: >
+      -c "echo '0 * * * * cd /app && python -m src.scheduled_import >> /var/log/sheet_parser/cron.log 2>&1' > /etc/cron.d/import-cron &&
+          chmod 0644 /etc/cron.d/import-cron &&
+          crontab /etc/cron.d/import-cron &&
+          cron -f"
+
+volumes:
+  sheet_parser_logs:

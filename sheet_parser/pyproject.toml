@@ -25,4 +25,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 sheet_parser_cli = "sheet_parser.src.__main__:main"
-sheet_parser_api = "sheet_parser.src.api_server:main"
+sheet_parser_api = "sheet_parser.wsgi:run_cli"
