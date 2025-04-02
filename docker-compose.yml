@@ -13,6 +13,7 @@ services:
       - SUPABASE_KEY=${SUPABASE_KEY}
       - API_USERNAME=${API_USERNAME}
       - API_PASSWORD=${API_PASSWORD}
+      - ONEDRIVE_CLIENT_ID=${ONEDRIVE_CLIENT_ID}
     volumes:
       - sheet_parser_logs:/var/log/sheet_parser
     command: gunicorn --bind 0.0.0.0:5000 wsgi:app
