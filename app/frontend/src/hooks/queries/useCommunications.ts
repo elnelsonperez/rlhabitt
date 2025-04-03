@@ -142,6 +142,47 @@ export function useOwnerMonthlyBookings(ownerId: string | undefined, year: numbe
 }
 
 /**
+ * Hook for retrying a failed communication
+ */
+export function useRetryCommunication() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: string) => commsClient.retryCommunication(id),
+    
+    onSuccess: (_, id) => {
+      // Invalidate the specific communication query
+      queryClient.invalidateQueries({ queryKey: ['communication', id] });
+      
+      // Also invalidate the communications list
+      queryClient.invalidateQueries({ queryKey: ['communications'] });
+    }
+  });
+}
+
+/**
+ * Hook for updating status of multiple communications
+ */
+export function useUpdateCommunicationsStatus() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({
+      communicationIds,
+      newStatus
+    }: {
+      communicationIds: string[];
+      newStatus: Database['public']['Enums']['communication_status'];
+    }) => commsClient.updateCommunicationsStatus(communicationIds, newStatus),
+    
+    onSuccess: () => {
+      // Invalidate all communications queries
+      queryClient.invalidateQueries({ queryKey: ['communications'] });
+    }
+  });
+}
+
+/**
  * Hook for creating a monthly breakdown communication
  */
 export function useCreateMonthlyBreakdown() {

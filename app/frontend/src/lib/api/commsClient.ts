@@ -63,6 +63,13 @@ export interface BookingForMonthlyBreakdown {
   has_communication: boolean;
 }
 
+// Type for bulk status update
+export interface BulkStatusUpdateResponse {
+  success: boolean;
+  updated: number;
+  errors?: string[];
+}
+
 export const commsClient = {
   /**
    * Get communications with pagination
@@ -387,6 +394,67 @@ export const commsClient = {
       owner,
       bookings: bookingsWithDetails as BookingForMonthlyBreakdown[]
     };
+  },
+
+  /**
+   * Reset a failed communication for retry
+   */
+  async retryCommunication(id: string): Promise<{ success: boolean }> {
+    try {
+      const { error } = await supabase
+        .from('communications')
+        .update({ 
+          status: 'pending',
+          retry_count: 0,  // Reset retry count
+          last_retry_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error retrying communication:', error);
+      throw error;
+    }
+  },
+  
+  /**
+   * Update status for multiple communications
+   */
+  async updateCommunicationsStatus(
+    communicationIds: string[],
+    newStatus: Database['public']['Enums']['communication_status']
+  ): Promise<BulkStatusUpdateResponse> {
+    if (!communicationIds.length) {
+      return { success: true, updated: 0 };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('communications')
+        .update({ status: newStatus })
+        .in('id', communicationIds)
+        .select('id');
+
+      if (error) {
+        throw error;
+      }
+
+      return {
+        success: true,
+        updated: data?.length || 0
+      };
+    } catch (error) {
+      console.error('Error updating communications status:', error);
+      return {
+        success: false,
+        updated: 0,
+        errors: [(error as Error).message]
+      };
+    }
   },
 
   /**

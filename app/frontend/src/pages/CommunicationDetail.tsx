@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { useCommunication, useApproveCommunication, useUpdateCustomMessage, useBookingReservations } from '../hooks/queries/useCommunications';
+import { 
+  useCommunication, 
+  useApproveCommunication, 
+  useUpdateCustomMessage, 
+  useBookingReservations,
+  useRetryCommunication
+} from '../hooks/queries/useCommunications';
 import { BookingCommunicationWithRelations } from '../lib/api/commsClient';
 import { EmailPreviewModal } from '../components/EmailPreviewModal';
 
@@ -133,6 +139,7 @@ export function CommunicationDetailPage() {
   // Mutations
   const approveMutation = useApproveCommunication();
   const updateMessageMutation = useUpdateCustomMessage();
+  const retryMutation = useRetryCommunication();
   
   // Toggle booking exclusion
   const toggleBookingExclusion = (bookingId: string) => {
@@ -152,6 +159,13 @@ export function CommunicationDetailPage() {
       excludedBookingIds,
       customMessage: customMessage.trim() || undefined
     });
+  };
+  
+  // Handle retry button click
+  const handleRetry = () => {
+    if (!communicationId) return;
+    
+    retryMutation.mutate(communicationId);
   };
   
   // Handle updating custom message
@@ -250,7 +264,26 @@ export function CommunicationDetailPage() {
                   <p className="mt-1">Aprobado por: {data.communication.approver?.email || 'Desconocido'}</p>
                 )}
                 {data.communication.status === 'failed' && (
-                  <p className="mt-1">Reintentos: {data.communication.retry_count}</p>
+                  <>
+                    <p className="mt-1">Reintentos: {data.communication.retry_count}</p>
+                    <button
+                      onClick={handleRetry}
+                      disabled={retryMutation.isPending}
+                      className="mt-2 px-3 py-1 text-sm bg-blue-100 text-blue-800 hover:bg-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {retryMutation.isPending ? 'Reintentando...' : 'Reintentar Envío'}
+                    </button>
+                    {retryMutation.isSuccess && (
+                      <p className="mt-1 text-xs text-green-600">
+                        La comunicación ha sido actualizada a estado 'Aprobado' para reintento.
+                      </p>
+                    )}
+                    {retryMutation.isError && (
+                      <p className="mt-1 text-xs text-red-600">
+                        Error: {retryMutation.error.message}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             </div>

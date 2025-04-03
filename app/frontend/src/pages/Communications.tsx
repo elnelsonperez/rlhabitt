@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useInfiniteCommunications } from '../hooks/queries/useCommunications';
+import { useInfiniteCommunications, useUpdateCommunicationsStatus } from '../hooks/queries/useCommunications';
 import { CommunicationWithRelations } from '../lib/api/commsClient';
 import { Database } from '../lib/supabase/database.types';
 
@@ -70,6 +70,14 @@ export function CommunicationsPage() {
   const [sortField, setSortField] = useState<string>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
+  // State for row selection
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  
+  // Mutation for updating status
+  const updateStatusMutation = useUpdateCommunicationsStatus();
+  
   // Fetch communications data with infinite query
   const {
     data,
@@ -114,6 +122,47 @@ export function CommunicationsPage() {
     }
   };
   
+  // Toggle selection of a single row
+  const toggleRowSelection = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Prevent row click navigation
+    
+    setSelectedRows(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(rowId => rowId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+  
+  // Toggle select all rows
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedRows([]);
+    } else {
+      const allIds = data?.communications?.map(comm => comm.id) || [];
+      setSelectedRows(allIds);
+    }
+    setSelectAll(!selectAll);
+  };
+  
+  // Handle bulk status update
+  const handleStatusChange = (newStatus: Database['public']['Enums']['communication_status']) => {
+    if (selectedRows.length === 0) return;
+    
+    updateStatusMutation.mutate({
+      communicationIds: selectedRows,
+      newStatus
+    }, {
+      onSuccess: () => {
+        // Clear selections after successful update
+        setSelectedRows([]);
+        setSelectAll(false);
+        setBulkActionOpen(false);
+      }
+    });
+  };
+  
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
@@ -126,41 +175,99 @@ export function CommunicationsPage() {
         </Link>
       </div>
       
-      {/* Filters */}
+      {/* Filters and Actions Bar */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <div>
-            <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">
-              Estado
-            </label>
-            <select
-              id="status-filter"
-              value={statusFilter}
-              onChange={handleStatusFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Todos</option>
-              <option value="pending">Pendiente</option>
-              <option value="approved">Aprobado</option>
-              <option value="sent">Enviado</option>
-              <option value="failed">Fallido</option>
-            </select>
+        <div className="flex flex-wrap justify-between items-center">
+          {/* Left side - Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <label htmlFor="status-filter" className="text-xs font-medium text-gray-700">
+                Estado
+              </label>
+              <select
+                id="status-filter"
+                value={statusFilter}
+                onChange={handleStatusFilterChange}
+                className="block w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="pending">Pendiente</option>
+                <option value="approved">Aprobado</option>
+                <option value="sent">Enviado</option>
+                <option value="failed">Fallido</option>
+              </select>
+            </div>
+            
+            <div>
+              <label htmlFor="type-filter" className="text-xs font-medium text-gray-700">
+                Tipo
+              </label>
+              <select
+                id="type-filter"
+                value={typeFilter}
+                onChange={handleTypeFilterChange}
+                className="block w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="new_booking">Nueva reserva</option>
+                <option value="monthly_report">Reporte Mensual</option>
+              </select>
+            </div>
           </div>
           
-          <div>
-            <label htmlFor="type-filter" className="block text-sm font-medium text-gray-700 mb-1">
-              Tipo
-            </label>
-            <select
-              id="type-filter"
-              value={typeFilter}
-              onChange={handleTypeFilterChange}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Todos</option>
-              <option value="new_booking">Nueva reserva</option>
-            </select>
-          </div>
+          {/* Right side - Bulk Actions (only shown when rows are selected) */}
+          {selectedRows.length > 0 && (
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              <span className="text-sm font-medium text-gray-700">
+                {selectedRows.length} seleccionadas
+              </span>
+              <div className="relative">
+                <button
+                  onClick={() => setBulkActionOpen(!bulkActionOpen)}
+                  className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  Cambiar Estado {bulkActionOpen ? '▲' : '▼'}
+                </button>
+                
+                {bulkActionOpen && (
+                  <div className="absolute right-0 z-10 mt-1 w-48 bg-white rounded-md shadow-lg">
+                    <div className="py-1">
+                      <button
+                        onClick={() => handleStatusChange('pending')}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Pendiente
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange('approved')}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Aprobado
+                      </button>
+                      <button
+                        onClick={() => handleStatusChange('sent')}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Enviado
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {updateStatusMutation.isPending && (
+                <span className="text-sm text-blue-600">Actualizando...</span>
+              )}
+              
+              {updateStatusMutation.isSuccess && (
+                <span className="text-sm text-green-600">¡Actualizado con éxito!</span>
+              )}
+              
+              {updateStatusMutation.isError && (
+                <span className="text-sm text-red-600">Error: {updateStatusMutation.error.message}</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
       
@@ -170,6 +277,14 @@ export function CommunicationsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th scope="col" className="pl-6 pr-3 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                </th>
                 <th
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
@@ -235,19 +350,19 @@ export function CommunicationsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     Cargando...
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-red-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-red-500">
                     Error al cargar las comunicaciones
                   </td>
                 </tr>
               ) : data?.communications?.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     No se encontraron comunicaciones
                   </td>
                 </tr>
@@ -255,10 +370,13 @@ export function CommunicationsPage() {
                 data?.communications?.map((comm: CommunicationWithRelations) => (
                   <tr 
                     key={comm.id}
-                    className="hover:bg-gray-50 cursor-pointer"
+                    className={`hover:bg-gray-50 cursor-pointer ${selectedRows.includes(comm.id) ? 'bg-blue-50' : ''}`}
                     onClick={(e) => {
-                      // Only navigate if it's a left click and not on a link element
-                      if (e.button === undefined && e.target && !(e.target as Element).closest('a')) {
+                      // Only navigate if it's a left click and not on a checkbox or link element
+                      if (e.button === undefined && 
+                          e.target && 
+                          !(e.target as Element).closest('input') && 
+                          !(e.target as Element).closest('a')) {
                         navigate({ 
                           to: '/communications/$communicationId',
                           params: { communicationId: comm.id }
@@ -266,6 +384,15 @@ export function CommunicationsPage() {
                       }
                     }}
                   >
+                    <td className="pl-6 pr-3 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedRows.includes(comm.id)}
+                        onChange={(e) => toggleRowSelection(e, comm.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(comm.created_at)}
                     </td>
