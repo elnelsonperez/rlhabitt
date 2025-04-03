@@ -12,6 +12,7 @@ export type Database = {
       apartments: {
         Row: {
           active: boolean | null
+          admin_fee_percentage: number
           building_id: string | null
           code: string | null
           created_at: string | null
@@ -23,6 +24,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean | null
+          admin_fee_percentage?: number
           building_id?: string | null
           code?: string | null
           created_at?: string | null
@@ -34,6 +36,7 @@ export type Database = {
         }
         Update: {
           active?: boolean | null
+          admin_fee_percentage?: number
           building_id?: string | null
           code?: string | null
           created_at?: string | null
@@ -56,6 +59,39 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_communications: {
+        Row: {
+          booking_id: string
+          communication_id: string
+          excluded: boolean
+        }
+        Insert: {
+          booking_id: string
+          communication_id: string
+          excluded?: boolean
+        }
+        Update: {
+          booking_id?: string
+          communication_id?: string
+          excluded?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_communications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_communications_communication_id_fkey"
+            columns: ["communication_id"]
+            isOneToOne: false
+            referencedRelation: "communications"
             referencedColumns: ["id"]
           },
         ]
@@ -181,6 +217,81 @@ export type Database = {
         }
         Relationships: []
       }
+      communications: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          channel: Database["public"]["Enums"]["communication_channel"]
+          comm_metadata: Json | null
+          comm_type: Database["public"]["Enums"]["communication_type"]
+          content: string | null
+          created_at: string
+          custom_message: string | null
+          id: string
+          last_retry_at: string | null
+          owner_id: string
+          recipient_email: string
+          report_period_end: string | null
+          report_period_start: string | null
+          retry_count: number
+          status: Database["public"]["Enums"]["communication_status"]
+          subject: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          channel?: Database["public"]["Enums"]["communication_channel"]
+          comm_metadata?: Json | null
+          comm_type: Database["public"]["Enums"]["communication_type"]
+          content?: string | null
+          created_at?: string
+          custom_message?: string | null
+          id?: string
+          last_retry_at?: string | null
+          owner_id: string
+          recipient_email: string
+          report_period_end?: string | null
+          report_period_start?: string | null
+          retry_count?: number
+          status?: Database["public"]["Enums"]["communication_status"]
+          subject: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          channel?: Database["public"]["Enums"]["communication_channel"]
+          comm_metadata?: Json | null
+          comm_type?: Database["public"]["Enums"]["communication_type"]
+          content?: string | null
+          created_at?: string
+          custom_message?: string | null
+          id?: string
+          last_retry_at?: string | null
+          owner_id?: string
+          recipient_email?: string
+          report_period_end?: string | null
+          report_period_start?: string | null
+          retry_count?: number
+          status?: Database["public"]["Enums"]["communication_status"]
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "communications_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "public_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "communications_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guests: {
         Row: {
           created_at: string | null
@@ -304,6 +415,21 @@ export type Database = {
         }
         Relationships: []
       }
+      public_users: {
+        Row: {
+          email: string
+          id: string
+        }
+        Insert: {
+          email: string
+          id: string
+        }
+        Update: {
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
       reservations: {
         Row: {
           apartment_id: string
@@ -355,6 +481,27 @@ export type Database = {
           },
         ]
       }
+      script_runs: {
+        Row: {
+          id: string
+          last_run_at: string
+          run_metadata: Json | null
+          script_name: string
+        }
+        Insert: {
+          id?: string
+          last_run_at?: string
+          run_metadata?: Json | null
+          script_name: string
+        }
+        Update: {
+          id?: string
+          last_run_at?: string
+          run_metadata?: Json | null
+          script_name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -395,7 +542,9 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      communication_channel: "email"
+      communication_status: "pending" | "approved" | "sent" | "failed"
+      communication_type: "new_booking"
     }
     CompositeTypes: {
       [_ in never]: never

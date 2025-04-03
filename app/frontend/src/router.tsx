@@ -9,6 +9,8 @@ import { LoginPage } from './pages/Login'
 import { ReservationsGridPage } from './pages/ReservationsGrid'
 import { BookingDetailPage } from './pages/BookingDetail'
 import { ImportPage } from './pages/Import'
+import { CommunicationsPage } from './pages/Communications'
+import { CommunicationDetailPage } from './pages/CommunicationDetail'
 import { useAuthStore } from './store/auth'
 import { AppLayout } from './components/Layout'
 
@@ -82,6 +84,20 @@ const importRoute = createRoute({
   component: ImportPage,
 })
 
+// Communications list page (protected by layout)
+const communicationsRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/communications',
+  component: CommunicationsPage,
+})
+
+// Communication detail page (protected by layout)
+const communicationDetailRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/communications/$communicationId',
+  component: CommunicationDetailPage,
+})
+
 // Login page
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -103,6 +119,8 @@ const routeTree = rootRoute.addChildren([
     reservationsGridRoute,
     bookingDetailRoute,
     importRoute,
+    communicationsRoute,
+    communicationDetailRoute,
   ]),
   loginRoute,
 ])

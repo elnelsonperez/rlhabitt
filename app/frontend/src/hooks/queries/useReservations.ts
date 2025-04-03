@@ -60,7 +60,7 @@ export function useReservations(buildingId: string, year: number, month: number)
       const { data: apartments, error: apartmentsError } = await supabase
         .from('apartments')
         .select(`
-          id, code, raw_text, owner_id, building_id, active, description, created_at, updated_at,
+          id, code, raw_text, owner_id, building_id, active, description, created_at, updated_at, admin_fee_percentage,
           owners:owner_id (id, name)
         `)
         .eq('building_id', buildingId)

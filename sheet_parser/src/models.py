@@ -89,12 +89,13 @@ class Booking(Base):
     guest = relationship("Guest")
     booking_communications = relationship("BookingCommunication", back_populates="booking")
 
-# Auth model
-class AuthUser(Base):
-    __tablename__ = 'users'
-    __table_args__ = {'schema': 'auth', 'extend_existing': True}
+# Auth model - public mirror of auth.users
+class PublicUser(Base):
+    __tablename__ = 'public_users'
+    __table_args__ = {'extend_existing': True}
     
     id = Column(UUID(as_uuid=True), primary_key=True)
+    email = Column(String, nullable=False)
     # We don't need to define other fields for this reference model
 
 # Communications models
@@ -111,7 +112,7 @@ class Communication(Base):
     retry_count = Column(Integer, nullable=False, default=0)
     last_retry_at = Column(DateTime(timezone=True))
     approved_at = Column(DateTime(timezone=True))
-    approved_by = Column(UUID(as_uuid=True), ForeignKey('auth.users.id'))
+    approved_by = Column(UUID(as_uuid=True), ForeignKey('public_users.id'))
     subject = Column(String, nullable=False)
     content = Column(String)
     custom_message = Column(String)
@@ -120,6 +121,8 @@ class Communication(Base):
     comm_metadata = Column(JSONB, default={})
     
     # Relationships
+    owner = relationship("Owner", foreign_keys=[owner_id])
+    approver = relationship("PublicUser", foreign_keys=[approved_by])
     booking_communications = relationship("BookingCommunication", back_populates="communication")
 
 class BookingCommunication(Base):

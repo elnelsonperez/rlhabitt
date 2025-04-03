@@ -28,6 +28,13 @@ export function Header() {
               >
                 Importar Datos
               </Link>
+              <Link
+                to="/communications"
+                activeProps={{ className: 'font-bold text-white' }}
+                inactiveProps={{ className: 'text-gray-300 hover:text-white' }}
+              >
+                Comunicaciones
+              </Link>
             </nav>
           )}
         </div>
