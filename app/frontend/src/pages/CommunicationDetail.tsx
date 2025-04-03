@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { useCommunication, useApproveCommunication, useUpdateCustomMessage, useBookingReservations } from '../hooks/queries/useCommunications';
 import { BookingCommunicationWithRelations } from '../lib/api/commsClient';
@@ -115,13 +115,20 @@ const BookingRow = ({
 export function CommunicationDetailPage() {
   const {communicationId} = useParams({from: '/layout/communications/$communicationId'});
 
+  // Fetch communication data
+  const { data, isLoading, error, refetch } = useCommunication(communicationId);
+
   // Local state for form and UI
   const [excludedBookingIds, setExcludedBookingIds] = useState<string[]>([]);
   const [customMessage, setCustomMessage] = useState<string>('');
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState<boolean>(false);
   
-  // Fetch communication data
-  const { data, isLoading, error } = useCommunication(communicationId);
+  // Initialize custom message when data is loaded
+  useEffect(() => {
+    if (data?.communication?.custom_message) {
+      setCustomMessage(data.communication.custom_message);
+    }
+  }, [data?.communication?.custom_message]);
   
   // Mutations
   const approveMutation = useApproveCommunication();
@@ -154,6 +161,11 @@ export function CommunicationDetailPage() {
     updateMessageMutation.mutate({
       id: communicationId,
       customMessage: customMessage.trim() || ""
+    }, {
+      onSuccess: () => {
+        // Refetch to get updated content
+        refetch();
+      }
     });
   };
   
@@ -355,7 +367,24 @@ export function CommunicationDetailPage() {
               <div className="flex justify-between mt-6">
                 <button
                   type="button"
-                  onClick={() => setIsPreviewModalOpen(true)}
+                  onClick={() => {
+                    // If content doesn't exist yet, update the message to generate content
+                    if (!data.communication.content) {
+                      updateMessageMutation.mutate({
+                        id: communicationId,
+                        customMessage: customMessage.trim() || ""
+                      }, {
+                        onSuccess: () => {
+                          // Refetch the data to get the updated content
+                          refetch().then(() => {
+                            setIsPreviewModalOpen(true);
+                          });
+                        }
+                      });
+                    } else {
+                      setIsPreviewModalOpen(true);
+                    }
+                  }}
                   className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   Ver Vista Previa HTML
@@ -393,7 +422,11 @@ export function CommunicationDetailPage() {
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
         title={data?.communication.subject || 'Vista Previa del Email'}
-        html={data?.communication.content || '<div class="p-4 text-center">No hay contenido disponible</div>'}
+        html={
+          updateMessageMutation.isPending
+            ? '<div class="p-4 text-center">Generando vista previa...</div>'
+            : data?.communication.content || '<div class="p-4 text-center">No hay contenido disponible</div>'
+        }
       />
     </div>
   );

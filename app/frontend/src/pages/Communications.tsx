@@ -54,6 +54,8 @@ const getCommTypeText = (type: string) => {
   switch (type) {
     case 'new_booking':
       return 'Nueva reserva';
+    case 'monthly_report':
+      return 'Reporte Mensual';
     default:
       return type;
   }

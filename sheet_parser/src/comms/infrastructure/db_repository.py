@@ -171,7 +171,7 @@ class CommunicationsRepository:
             LEFT JOIN guests g ON b.guest_id = g.id
             WHERE bc.communication_id = :comm_id
             AND bc.excluded = :excluded
-            ORDER BY b.check_in
+            ORDER BY a.code, b.check_in
         """)
         
         result = self.session.execute(stmt, {"comm_id": communication_id, "excluded": excluded})

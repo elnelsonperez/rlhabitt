@@ -544,7 +544,7 @@ export type Database = {
     Enums: {
       communication_channel: "email"
       communication_status: "pending" | "approved" | "sent" | "failed"
-      communication_type: "new_booking"
+      communication_type: "new_booking" | "monthly_report"
     }
     CompositeTypes: {
       [_ in never]: never

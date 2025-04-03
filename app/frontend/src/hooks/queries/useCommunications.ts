@@ -99,7 +99,10 @@ export function useUpdateCustomMessage() {
     }) => commsClient.updateCustomMessage(id, customMessage),
     
     onSuccess: (data, variables) => {
-      // Update the communication in the cache with the new content
+      // Invalidate the query to ensure we get fresh data
+      queryClient.invalidateQueries({ queryKey: ['communication', variables.id] });
+      
+      // Also update the cache immediately for instant UI feedback
       queryClient.setQueryData(['communication', variables.id], (oldData: any) => {
         if (!oldData) return oldData;
         

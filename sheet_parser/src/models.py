@@ -20,7 +20,7 @@ communication_status = ENUM(
 )
 
 communication_type = ENUM(
-    'new_booking',
+    'new_booking', 'monthly_report',
     name='communication_type'
 )
 

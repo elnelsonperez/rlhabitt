@@ -32,8 +32,9 @@ class CommunicationsService:
             autoescape=jinja2.select_autoescape(['html', 'xml'])
         )
         
-        # Add date formatting function for templates
+        # Add date formatting functions for templates
         self.jinja_env.filters['format_date'] = self._format_date
+        self.jinja_env.filters['format_month_es'] = self._format_month_spanish
     
     def _format_date(self, value):
         """Format a date for display in templates."""
@@ -45,6 +46,37 @@ class CommunicationsService:
                 # Format date only
                 return value.strftime('%d/%m/%Y')
         return value
+        
+    def _format_month_spanish(self, value):
+        """Format a date to show month name in Spanish."""
+        if not isinstance(value, (datetime, date)):
+            if isinstance(value, str):
+                try:
+                    value = datetime.fromisoformat(value)
+                except ValueError:
+                    return value
+            else:
+                return value
+                
+        # Dictionary of Spanish month names
+        spanish_months = {
+            1: 'Enero',
+            2: 'Febrero',
+            3: 'Marzo',
+            4: 'Abril',
+            5: 'Mayo',
+            6: 'Junio',
+            7: 'Julio',
+            8: 'Agosto',
+            9: 'Septiembre',
+            10: 'Octubre',
+            11: 'Noviembre',
+            12: 'Diciembre'
+        }
+        
+        # Use our dictionary instead of relying on locale
+        month_name = spanish_months.get(value.month, '')
+        return f"{month_name.capitalize()} {value.year}"
     
     def find_new_bookings(self, last_run_date: datetime) -> List[Dict]:
         """Find bookings created since the last run date with buffer."""
@@ -182,93 +214,161 @@ class CommunicationsService:
         
         return communication_count
     
-    def calculate_admin_fees(self, bookings: List[Dict]) -> List[Dict]:
+    def _get_current_month_range(self) -> Tuple[date, date]:
         """
-        Calculate admin fees for each booking and add to booking dict.
-        Also calculates the portion of the booking that falls within the current month,
-        separating nights that have already been paid out or will be paid in future months.
+        Helper method to get the first and last day of the current month.
+        
+        Returns:
+            Tuple of (first_day_of_month, last_day_of_month)
         """
-        # Get the current month's date range
         today = datetime.now().date()
         first_day_of_month = today.replace(day=1)
+        
         if today.month == 12:
             next_month = today.replace(year=today.year + 1, month=1, day=1)
         else:
             next_month = today.replace(month=today.month + 1, day=1)
+            
         last_day_of_month = next_month - timedelta(days=1)
         
-        logger.info(f"Calculating fees for current month: {first_day_of_month} to {last_day_of_month}")
+        return first_day_of_month, last_day_of_month
         
-        for booking in bookings:
-            admin_fee_pct = float(booking['admin_fee_percentage'])
-            check_in = booking['check_in'].date() if isinstance(booking['check_in'], datetime) else booking['check_in']
-            check_out = booking['check_out'].date() if isinstance(booking['check_out'], datetime) else booking['check_out']
+    def _get_date_range_from_period(self, report_period: Optional[Dict[str, Any]] = None) -> Tuple[date, date]:
+        """
+        Helper method to get date range from report period or default to current month.
+        
+        Args:
+            report_period: Optional dictionary with 'start' and 'end' dates
             
-            # Calculate total nights
-            total_nights = (check_out - check_in).days
+        Returns:
+            Tuple of (start_date, end_date)
+        """
+        if report_period and 'start' in report_period and 'end' in report_period:
+            start_date = report_period['start'].date() if isinstance(report_period['start'], datetime) else report_period['start']
+            end_date = report_period['end'].date() if isinstance(report_period['end'], datetime) else report_period['end']
             
-            # Get precise nightly rates from actual reservations
-            reservations = self.repository.get_booking_reservations(booking['id'])
-            
-            # Throw error if no reservations found - we must use actual rates
-            if not reservations:
-                raise ValueError(f"No reservations found for booking {booking['id']}. Cannot calculate accurate rates.")
-            
-            # Calculate total based on actual reservation rates
-            total_calculated_amount = sum(float(res.rate) for res in reservations)
-            
-            # Calculate the average nightly rate for reference
-            avg_nightly_rate = total_calculated_amount / total_nights if total_nights > 0 else 0
-            
-            # Determine month boundaries for this booking
-            current_month_start = max(check_in, first_day_of_month)
-            current_month_end = min(check_out, last_day_of_month)
-            
-            # Calculate current, previous, and future month amounts precisely
-            current_month_amount = 0.0
-            previous_month_amount = 0.0
-            future_month_amount = 0.0
-            
-            current_month_nights = 0
-            previous_month_nights = 0
-            future_month_nights = 0
-            
-            # Categorize each reservation by month and sum rates accordingly
-            for res in reservations:
-                res_date = res.date.date() if isinstance(res.date, datetime) else res.date
-                rate = float(res.rate)
+            # Handle string dates
+            if isinstance(start_date, str):
+                start_date = datetime.fromisoformat(start_date).date()
+            if isinstance(end_date, str):
+                end_date = datetime.fromisoformat(end_date).date()
                 
-                if first_day_of_month <= res_date <= last_day_of_month:
-                    # Current month
-                    current_month_amount += rate
-                    current_month_nights += 1
-                elif res_date < first_day_of_month:
-                    # Previous month
-                    previous_month_amount += rate
-                    previous_month_nights += 1
-                else:
-                    # Future month
-                    future_month_amount += rate
-                    future_month_nights += 1
+            return start_date, end_date
+        else:
+            # Default to current month
+            return self._get_current_month_range()
+        
+    def calculate_booking_financials(self, booking: Dict, 
+                                  first_day_of_month: date, 
+                                  last_day_of_month: date) -> Dict:
+        """
+        Calculate financial details for a single booking, including monthly breakdowns.
+        
+        Args:
+            booking: The booking dictionary with booking details
+            first_day_of_month: First day of the current month
+            last_day_of_month: Last day of the current month
             
-            # Calculate admin fees
-            admin_fee = current_month_amount * (admin_fee_pct / 100)
-            owner_amount = current_month_amount - admin_fee
+        Returns:
+            The updated booking dictionary with calculated financial values
+        """
+        admin_fee_pct = float(booking['admin_fee_percentage'])
+        check_in = booking['check_in'].date() if isinstance(booking['check_in'], datetime) else booking['check_in']
+        check_out = booking['check_out'].date() if isinstance(booking['check_out'], datetime) else booking['check_out']
+        
+        # Calculate total nights
+        total_nights = (check_out - check_in).days
+        
+        # Get precise nightly rates from actual reservations
+        reservations = self.repository.get_booking_reservations(booking['id'])
+        
+        # Throw error if no reservations found - we must use actual rates
+        if not reservations:
+            raise ValueError(f"No reservations found for booking {booking['id']}. Cannot calculate accurate rates.")
+        
+        # Calculate total based on actual reservation rates
+        total_calculated_amount = sum(float(res.rate) for res in reservations)
+        
+        # Calculate the average nightly rate for reference
+        avg_nightly_rate = total_calculated_amount / total_nights if total_nights > 0 else 0
+        
+        # Determine month boundaries for this booking
+        current_month_start = max(check_in, first_day_of_month)
+        current_month_end = min(check_out, last_day_of_month)
+        
+        # Initialize counters
+        current_month_amount = 0.0
+        previous_month_amount = 0.0
+        future_month_amount = 0.0
+        current_month_nights = 0
+        previous_month_nights = 0
+        future_month_nights = 0
+        
+        # Categorize each reservation by month and sum rates accordingly
+        for res in reservations:
+            res_date = res.date.date() if isinstance(res.date, datetime) else res.date
+            rate = float(res.rate)
             
-            # Add calculated values to booking dict
-            booking['admin_fee'] = admin_fee
-            booking['owner_amount'] = owner_amount
-            booking['total_nights'] = total_nights
-            booking['nightly_rate'] = avg_nightly_rate  # Average rate for display
-            booking['calculated_total_amount'] = total_calculated_amount  # True calculated total instead of booking['total_amount']
-            booking['current_month_nights'] = current_month_nights
-            booking['current_month_amount'] = current_month_amount
-            booking['previous_month_nights'] = previous_month_nights
-            booking['previous_month_amount'] = previous_month_amount
-            booking['future_month_nights'] = future_month_nights
-            booking['future_month_amount'] = future_month_amount
-            booking['current_month_start'] = current_month_start
-            booking['current_month_end'] = current_month_end
+            if first_day_of_month <= res_date <= last_day_of_month:
+                # Current month
+                current_month_amount += rate
+                current_month_nights += 1
+            elif res_date < first_day_of_month:
+                # Previous month
+                previous_month_amount += rate
+                previous_month_nights += 1
+            else:
+                # Future month
+                future_month_amount += rate
+                future_month_nights += 1
+        
+        # Calculate admin fees
+        admin_fee = current_month_amount * (admin_fee_pct / 100)
+        owner_amount = current_month_amount - admin_fee
+        
+        # Update booking with calculated values
+        booking.update({
+            'admin_fee': admin_fee,
+            'owner_amount': owner_amount,
+            'total_nights': total_nights,
+            'nightly_rate': avg_nightly_rate,
+            'calculated_total_amount': total_calculated_amount,
+            'current_month_nights': current_month_nights,
+            'current_month_amount': current_month_amount,
+            'previous_month_nights': previous_month_nights,
+            'previous_month_amount': previous_month_amount,
+            'future_month_nights': future_month_nights,
+            'future_month_amount': future_month_amount,
+            'current_month_start': current_month_start,
+            'current_month_end': current_month_end
+        })
+        
+        return booking
+    
+    def calculate_admin_fees(self, bookings: List[Dict], report_period: Optional[Dict[str, Any]] = None) -> List[Dict]:
+        """
+        Calculate admin fees for each booking and add to booking dict.
+        Uses the provided report period or defaults to current month.
+        
+        Args:
+            bookings: List of booking dictionaries
+            report_period: Optional dictionary with 'start' and 'end' dates
+            
+        Returns:
+            List of bookings with calculated financial details
+        """
+        # Get the date range from report period or default to current month
+        start_date, end_date = self._get_date_range_from_period(report_period)
+        
+        logger.info(f"Calculating fees for period: {start_date} to {end_date}")
+        
+        # Process each booking
+        for i, booking in enumerate(bookings):
+            bookings[i] = self.calculate_booking_financials(
+                booking, 
+                start_date, 
+                end_date
+            )
         
         return bookings
     
@@ -276,29 +376,29 @@ class CommunicationsService:
         """Calculate financial totals for a list of bookings."""
         # Calculate if any bookings span multiple months
         has_split_bookings = any(
-            b['previous_month_nights'] > 0 or b['future_month_nights'] > 0 
+            b.get('previous_month_nights', 0) > 0 or b.get('future_month_nights', 0) > 0 
             for b in bookings
         )
         
         totals = {
             # Total booking amounts - using calculated amount instead of booking's total_amount
-            'total_amount': sum(float(b['calculated_total_amount']) for b in bookings),
+            'total_amount': sum(float(b.get('calculated_total_amount', 0)) for b in bookings),
             
             # Current month totals (what will be paid this month)
-            'current_month_amount': sum(float(b['current_month_amount']) for b in bookings),
-            'total_admin_fee': sum(float(b['admin_fee']) for b in bookings),
-            'total_owner_amount': sum(float(b['owner_amount']) for b in bookings),
+            'current_month_amount': sum(float(b.get('current_month_amount', 0)) for b in bookings),
+            'total_admin_fee': sum(float(b.get('admin_fee', 0)) for b in bookings),
+            'total_owner_amount': sum(float(b.get('owner_amount', 0)) for b in bookings),
             
             # Previous month totals (already paid or pending from previous month)
-            'previous_month_amount': sum(float(b['previous_month_amount']) for b in bookings),
+            'previous_month_amount': sum(float(b.get('previous_month_amount', 0)) for b in bookings),
             
             # Future month totals (will be paid in future months)
-            'future_month_amount': sum(float(b['future_month_amount']) for b in bookings),
+            'future_month_amount': sum(float(b.get('future_month_amount', 0)) for b in bookings),
             
             # Count totals
             'total_bookings': len(bookings),
-            'total_nights': sum(int(b['total_nights']) for b in bookings),
-            'current_month_nights': sum(int(b['current_month_nights']) for b in bookings),
+            'total_nights': sum(int(b.get('total_nights', 0)) for b in bookings),
+            'current_month_nights': sum(int(b.get('current_month_nights', 0)) for b in bookings),
             
             # Flag for template to know if any bookings span multiple months
             'has_split_bookings': has_split_bookings
@@ -307,9 +407,18 @@ class CommunicationsService:
         return totals
     
     def generate_email_content(self, 
-                              communication_id: uuid.UUID, 
-                              template_name: str = 'emails/new_booking_es.html') -> Optional[str]:
-        """Generate email content from template."""
+                              communication_id: uuid.UUID,
+                              template_name: Optional[str] = None) -> Optional[str]:
+        """
+        Generate email content from template.
+        
+        Args:
+            communication_id: UUID of the communication
+            template_name: Optional template name override
+            
+        Returns:
+            HTML content of the rendered email template
+        """
         # Get the communication record
         communication = self.repository.session.query(Communication).get(communication_id)
         if not communication:
@@ -333,23 +442,35 @@ class CommunicationsService:
             {"comm_id": communication_id}
         ).scalar_one_or_none()
         
-        # Calculate admin fees
-        bookings = self.calculate_admin_fees(bookings)
+        # Define report period for financial calculations
+        report_period = {
+            'start': communication.report_period_start,
+            'end': communication.report_period_end
+        } if communication.report_period_start and communication.report_period_end else None
         
-        # Calculate totals
+        # Calculate admin fees based on report period
+        bookings = self.calculate_admin_fees(bookings, report_period)
+        
+        # Sort bookings first by apartment code and then by check-in date
+        bookings = sorted(bookings, key=lambda b: (
+            b.get('apartment_name', '').lower(), 
+            b.get('check_in', '') if isinstance(b.get('check_in', ''), str) 
+            else b.get('check_in', '').isoformat() if hasattr(b.get('check_in', ''), 'isoformat') 
+            else ''
+        ))
+        
+        # Calculate totals 
         totals = self.calculate_financial_totals(bookings)
         
         # Get admin fee percentage from first booking (should be consistent)
-        admin_fee_percentage = bookings[0]['admin_fee_percentage']
+        admin_fee_percentage = bookings[0].get('admin_fee_percentage', 0)
         
-        # Get current month range for the template
-        today = datetime.now().date()
-        first_day_of_month = today.replace(day=1)
-        if today.month == 12:
-            next_month = today.replace(year=today.year + 1, month=1, day=1)
-        else:
-            next_month = today.replace(month=today.month + 1, day=1)
-        last_day_of_month = next_month - timedelta(days=1)
+        # Select template based on communication type if not explicitly provided
+        if not template_name:
+            if communication.comm_type == 'monthly_report':
+                template_name = 'emails/monthly_report_es.html'
+            else:
+                template_name = 'emails/new_booking_es.html'
         
         # Prepare template context
         context = {
@@ -359,8 +480,6 @@ class CommunicationsService:
             'report_period_end': communication.report_period_end,
             'custom_message': communication.custom_message,
             'admin_fee_percentage': admin_fee_percentage,
-            'first_day_of_month': first_day_of_month,
-            'last_day_of_month': last_day_of_month,
             **totals
         }
         
@@ -478,8 +597,9 @@ class CommunicationsService:
         report_start = datetime.fromisoformat(report_period['start'])
         report_end = datetime.fromisoformat(report_period['end'])
         
-        # Create a subject line showing the month and year
-        subject = f"Resumen mensual: {report_start.strftime('%B %Y').capitalize()}"
+        # Create a subject line showing the month and year in Spanish
+        # Use our custom formatter for consistent output regardless of system locale
+        subject = f"Resumen mensual: {self._format_month_spanish(report_start)}"
         
         logger.info(f"Creating monthly breakdown for owner {owner_id} with {len(booking_ids)} bookings")
         
@@ -495,7 +615,7 @@ class CommunicationsService:
                 owner_id=owner_id,
                 recipient_email=owner['email'],
                 subject=subject,
-                comm_type='monthly_report',
+                comm_type='monthly_report',  # Specific type for monthly reports
                 report_period_start=report_start,
                 report_period_end=report_end,
                 custom_message=custom_message

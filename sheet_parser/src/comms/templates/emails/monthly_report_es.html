@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resumen Mensual de Propietario</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .summary-box {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .total-row {
+            font-weight: bold;
+            background-color: #f2f2f2;
+        }
+        .custom-message {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #5bc0de;
+            margin-bottom: 20px;
+        }
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 0.9em;
+            color: #777;
+        }
+        .money {
+            text-align: right;
+        }
+        .apartment-separator {
+            height: 3px;
+            background-color: #aaa;
+            padding: 0;
+            border: none;
+        }
+        .apartment-group-even {
+            background-color: #f9f9f9;
+        }
+        .apartment-group-odd {
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Resumen Mensual: {{ report_period_start | format_month_es }}</h1>
+    </div>
+
+    {% if custom_message %}
+    <div class="custom-message">
+        <p>{{ custom_message }}</p>
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <h2>Estimado/a {{ owner_name }},</h2>
+        <p>A continuación le presentamos el resumen mensual de las reservas para su propiedad correspondiente al período del {{ report_period_start | format_date }} al {{ report_period_end | format_date }}.</p>
+    </div>
+
+    <div class="summary-box">
+        <h3>Resumen Financiero</h3>
+        <table>
+            <tr>
+                <td>Total Reservas:</td>
+                <td class="money">{{ total_bookings }}</td>
+            </tr>
+            <tr>
+                <td>Total Noches:</td>
+                <td class="money">{{ total_nights }}</td>
+            </tr>
+            <tr>
+                <td>Ingresos Totales:</td>
+                <td class="money">${{ "%.2f"|format(total_amount) }}</td>
+            </tr>
+            <tr>
+                <td>Comisión de Gestión ({{ admin_fee_percentage }}%):</td>
+                <td class="money">${{ "%.2f"|format(total_admin_fee) }}</td>
+            </tr>
+            <tr class="total-row">
+                <td>Cantidad a Pagar al Propietario:</td>
+                <td class="money">${{ "%.2f"|format(total_owner_amount) }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h3>Detalle de Reservas</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Apartamento</th>
+                    <th>Entrada</th>
+                    <th>Salida</th>
+                    <th>Noches</th>
+                    <th>Importe</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(current_apartment="", apartment_count=0) %}
+                {% for booking in bookings %}
+                    {% if booking.apartment_name != ns.current_apartment %}
+                        {% if ns.current_apartment != "" %}
+                        <!-- Apartment separator row -->
+                        <tr>
+                            <td colspan="5" class="apartment-separator"></td>
+                        </tr>
+                        {% endif %}
+                        {% set ns.current_apartment = booking.apartment_name %}
+                        {% set ns.apartment_count = ns.apartment_count + 1 %}
+                    {% endif %}
+                    
+                    <tr class="apartment-group-{{ 'odd' if ns.apartment_count % 2 == 1 else 'even' }}">
+                        <td>{{ booking.apartment_name }}</td>
+                        <td>{{ booking.check_in | format_date }}</td>
+                        <td>{{ booking.check_out | format_date }}</td>
+                        <td>{{ booking.total_nights }}</td>
+                        <td class="money">${{ "%.2f"|format(booking.calculated_total_amount) }}</td>
+                    </tr>
+                {% endfor %}
+                <tr class="total-row">
+                    <td colspan="3">Total</td>
+                    <td>{{ total_nights }}</td>
+                    <td class="money">${{ "%.2f"|format(total_amount) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="footer">
+        <p>Este es un correo automático. Por favor, no responda a este mensaje.</p>
+        <p>Si tiene alguna pregunta, póngase en contacto con nosotros a través de nuestros canales habituales.</p>
+    </div>
+</body>
+</html>
