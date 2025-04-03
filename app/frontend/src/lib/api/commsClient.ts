@@ -389,9 +389,8 @@ export const commsClient = {
     };
   },
 
-  // TODO move this to backend
   /**
-   * Create a monthly breakdown communication for an owner
+   * Create a monthly breakdown communication for an owner using the backend API
    */
   async createMonthlyBreakdown({
     ownerId,
@@ -404,61 +403,38 @@ export const commsClient = {
     customMessage?: string;
     reportPeriod: { start: string; end: string };
   }) {
-    // All of this needs to be moved to the API
-
-    // Get owner details
-    const { data: owner, error: ownerError } = await supabase
-      .from('owners')
-      .select('id, name, email')
-      .eq('id', ownerId)
-      .single();
-      
-    if (ownerError) {
-      throw ownerError;
+    // Get user's access token from Supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    
+    if (!token) {
+      throw new Error('Authentication required to create communications');
     }
     
-    // Create the communication record
-    // First get the proper column names from Supabase
-    const { data: communication, error: commError } = await supabase
-      .from('communications')
-      .insert({
-        // Supabase uses snake_case for column names
+    // Call the API endpoint
+    const response = await fetch(`${API_BASE_URL}/api/comms/monthly-breakdown`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
         owner_id: ownerId,
-        recipient_email: owner.email || '',
-        comm_type: 'new_booking',
-        status: 'pending',
-        subject: `Resumen mensual: ${new Date(reportPeriod.start).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
-        custom_message: customMessage || null,
-        report_period_start: reportPeriod.start,
-        report_period_end: reportPeriod.end,
+        booking_ids: bookingIds,
+        custom_message: customMessage,
+        report_period: reportPeriod
       })
-      .select()
-      .single();
-      
-    if (commError) {
-      throw commError;
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create monthly breakdown');
     }
     
-    // Create booking_communications entries
-    const bookingCommunications = bookingIds.map(bookingId => ({
-      communication_id: communication.id,
-      booking_id: bookingId,
-      excluded: false
-    }));
-    
-    const { error: bcError } = await supabase
-      .from('booking_communications')
-      .insert(bookingCommunications);
-      
-    if (bcError) {
-      throw bcError;
-    }
-    
-    // Generate email content using the existing updateCustomMessage method
-    await this.updateCustomMessage(communication.id, customMessage || '');
+    const result = await response.json();
     
     return {
-      communicationId: communication.id
+      communicationId: result.communication_id
     };
   }
 };

@@ -426,3 +426,94 @@ class CommunicationsService:
                 failure_count += 1
         
         return success_count, failure_count
+        
+    def create_monthly_breakdown(self,
+                               owner_id: uuid.UUID,
+                               booking_ids: List[uuid.UUID],
+                               custom_message: Optional[str] = None,
+                               report_period: Optional[Dict[str, str]] = None) -> uuid.UUID:
+        """
+        Create a monthly breakdown communication for an owner.
+        
+        Args:
+            owner_id: UUID of the owner
+            booking_ids: List of booking UUIDs to include in the communication
+            custom_message: Optional custom message to include in the communication
+            report_period: Optional dictionary with 'start' and 'end' date strings
+                          for the reporting period
+        
+        Returns:
+            UUID of the created communication
+        """
+        # Get owner details
+        stmt = text("""
+            SELECT id, name, email
+            FROM owners
+            WHERE id = :owner_id
+        """)
+        owner = self.repository.session.execute(stmt, {"owner_id": owner_id}).mappings().one_or_none()
+        
+        if not owner:
+            raise ValueError(f"Owner {owner_id} not found")
+            
+        if not owner['email']:
+            raise ValueError(f"Owner {owner_id} has no email configured")
+            
+        # Format report period
+        if not report_period:
+            # Default to current month
+            today = datetime.now().date()
+            first_day = today.replace(day=1)
+            if today.month == 12:
+                next_month = today.replace(year=today.year + 1, month=1, day=1)
+            else:
+                next_month = today.replace(month=today.month + 1, day=1)
+            last_day = next_month - timedelta(days=1)
+            
+            report_period = {
+                'start': first_day.isoformat(),
+                'end': last_day.isoformat()
+            }
+        
+        report_start = datetime.fromisoformat(report_period['start'])
+        report_end = datetime.fromisoformat(report_period['end'])
+        
+        # Create a subject line showing the month and year
+        subject = f"Resumen mensual: {report_start.strftime('%B %Y').capitalize()}"
+        
+        logger.info(f"Creating monthly breakdown for owner {owner_id} with {len(booking_ids)} bookings")
+        
+        # Start a transaction
+        session = self.repository.session
+        
+        try:
+            # Begin transaction explicitly
+            session.begin_nested()
+            
+            # Create the communication record
+            communication = self.repository.create_communication(
+                owner_id=owner_id,
+                recipient_email=owner['email'],
+                subject=subject,
+                comm_type='monthly_report',
+                report_period_start=report_start,
+                report_period_end=report_end,
+                custom_message=custom_message
+            )
+            
+            # Link bookings to the communication
+            self.repository.link_bookings_to_communication(communication.id, booking_ids)
+            
+            # Generate the email content
+            self.generate_email_content(communication.id)
+            
+            # Commit the nested transaction
+            session.commit()
+            
+            return communication.id
+            
+        except Exception as e:
+            # Roll back on error
+            session.rollback()
+            logger.exception(f"Failed to create monthly breakdown for owner {owner_id}: {str(e)}")
+            raise
