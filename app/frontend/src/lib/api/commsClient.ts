@@ -22,6 +22,7 @@ export interface CommunicationWithRelations extends CommunicationRow {
   owner?: Pick<OwnerRow, 'name' | 'email'>;
   approver?: PublicUserRow;
   booking_count?: number;
+  total_amount?: number; // Total sum of reservation rates
 }
 
 export interface BookingCommunicationWithRelations extends BookingCommunicationRow {
@@ -72,7 +73,7 @@ export interface BulkStatusUpdateResponse {
 
 export const commsClient = {
   /**
-   * Get communications with pagination
+   * Get communications with pagination and total amounts using the API endpoint
    */
   async getCommunications({
     status,
@@ -89,64 +90,80 @@ export const commsClient = {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }) {
-    // Calculate range for pagination
-    const from = page * pageSize;
-    const to = from + pageSize - 1;
-    
-    let query = supabase
-      .from('communications')
-      .select(`
-        *,
-        owner:owner_id (
-          name,
-          email
-        ),
-        approver:approved_by(
-          email
-        ),
-        booking_count:booking_communications!inner(count)
-      `, { count: 'exact' });
-    
-    // Apply filters
-    if (status) {
-      query = query.eq('status', status);
-    }
-    
-    if (type) {
-      query = query.eq('comm_type', type);
-    }
-    
-    // Apply sorting
-    query = query.order(sortBy, { ascending: sortOrder === 'asc' });
-    
-    // Apply pagination
-    query = query.range(from, to);
-    
-    const { data, error, count } = await query;
-    
-    if (error) {
+    try {
+      // Get user's access token from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      if (!token) {
+        throw new Error('Authentication required to fetch communications');
+      }
+      
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (status) params.append('status', status);
+      if (type) params.append('type', type);
+      params.append('page', (page + 1).toString()); // API uses 1-based pagination
+      params.append('limit', pageSize.toString());
+      params.append('sortBy', sortBy);
+      params.append('sortOrder', sortOrder);
+      
+      // Call the API endpoint
+      const response = await fetch(`${API_BASE_URL}/api/comms/communications-with-totals?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch communications');
+      }
+      
+      const result = await response.json();
+      
+      // Transform data to match our expected interface
+      const processedData = (result.data || []).map((item: any) => {
+        return {
+          id: item.id,
+          created_at: item.created_at,
+          status: item.status as Database['public']['Enums']['communication_status'],
+          comm_type: item.comm_type as Database['public']['Enums']['communication_type'],
+          channel: item.channel as Database['public']['Enums']['communication_channel'],
+          owner_id: item.owner_id,
+          recipient_email: item.recipient_email,
+          retry_count: item.retry_count,
+          last_retry_at: item.last_retry_at,
+          approved_at: item.approved_at,
+          approved_by: item.approved_by,
+          subject: item.subject,
+          content: item.content || '',
+          custom_message: item.custom_message,
+          report_period_start: item.report_period_start,
+          report_period_end: item.report_period_end,
+          comm_metadata: item.comm_metadata || {},
+          owner: {
+            name: item.owner_name,
+            email: item.recipient_email // Fall back to recipient email if owner email is not provided
+          },
+          approver: item.approver_email ? { email: item.approver_email } : undefined,
+          booking_count: item.booking_count,
+          total_amount: item.total_amount
+        };
+      });
+      
+      return {
+        data: processedData as CommunicationWithRelations[],
+        count: result.pagination.total,
+        page,
+        pageSize,
+      };
+    } catch (error) {
+      console.error("Error fetching communications with totals:", error);
       throw error;
     }
-    
-    // Process the data to fix the booking_count object issue
-    const processedData = data?.map(item => {
-      console.log(item)
-      return {
-        ...item,
-        booking_count: item.booking_count
-          ? item.booking_count[0].count
-          : 0
-      };
-    }) || [];
-
-    console.log(processedData)
-    
-    return {
-      data: processedData as CommunicationWithRelations[],
-      count: count || 0,
-      page,
-      pageSize,
-    };
   },
   
   /**

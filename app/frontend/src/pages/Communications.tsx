@@ -123,7 +123,7 @@ export function CommunicationsPage() {
   };
   
   // Toggle selection of a single row
-  const toggleRowSelection = (e: React.MouseEvent, id: string) => {
+  const toggleRowSelection = (e: any, id: string) => {
     e.stopPropagation(); // Prevent row click navigation
     
     setSelectedRows(prev => {
@@ -333,6 +333,12 @@ export function CommunicationsPage() {
                 </th>
                 <th
                   scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Importe Total
+                </th>
+                <th
+                  scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                   onClick={() => handleSortFieldChange('status')}
                 >
@@ -350,19 +356,19 @@ export function CommunicationsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                     Cargando...
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-red-500">
+                  <td colSpan={8} className="px-6 py-4 text-center text-red-500">
                     Error al cargar las comunicaciones
                   </td>
                 </tr>
               ) : data?.communications?.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                     No se encontraron comunicaciones
                   </td>
                 </tr>
@@ -418,6 +424,9 @@ export function CommunicationsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {comm.booking_count || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${comm.total_amount ? (comm.total_amount as number).toFixed(2) : '0.00'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClasses(comm.status)}`}>

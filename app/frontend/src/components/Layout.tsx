@@ -50,7 +50,7 @@ export function AppLayout() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <NotificationsBar pollingInterval={30000} />
+      <NotificationsBar pollingInterval={120000} />
       <main className="flex-1 p-4">
         <Outlet />
       </main>

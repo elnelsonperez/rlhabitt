@@ -88,6 +88,19 @@ class Booking(Base):
     apartment = relationship("Apartment", back_populates="bookings")
     guest = relationship("Guest")
     booking_communications = relationship("BookingCommunication", back_populates="booking")
+    reservations = relationship("Reservation", back_populates="booking")
+
+class Reservation(Base):
+    __tablename__ = 'reservations'
+    __table_args__ = {'extend_existing': True}
+    
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey('bookings.id'))
+    date = Column(Date, nullable=False)
+    rate = Column(Float)
+    
+    # Relationships
+    booking = relationship("Booking", back_populates="reservations")
 
 # Auth model - public mirror of auth.users
 class PublicUser(Base):
