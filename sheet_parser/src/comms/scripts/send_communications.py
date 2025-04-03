@@ -25,12 +25,16 @@ def main():
     """Main entry point for the script."""
     args = parse_args()
     
-    # Get Resend API key from environment
+    # Get email configuration from environment
     resend_api_key = os.environ.get("RESEND_API_KEY")
+    from_email = os.environ.get("FROM_EMAIL")
     
     if not resend_api_key and not args.dry_run:
         logger.error("RESEND_API_KEY environment variable not set and not in dry-run mode")
         sys.exit(1)
+        
+    if from_email:
+        logger.info(f"Using custom FROM_EMAIL: {from_email}")
     
     session = None
     try:
@@ -40,7 +44,7 @@ def main():
         
         # Initialize repository and service
         repository = CommunicationsRepository(session)
-        email_sender = EmailSender(resend_api_key)
+        email_sender = EmailSender(resend_api_key, from_email)
         service = CommunicationsService(repository, email_sender)
         
         if args.dry_run:

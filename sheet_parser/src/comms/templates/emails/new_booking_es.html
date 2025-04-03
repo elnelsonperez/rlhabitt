@@ -88,7 +88,7 @@
     </div>
 
     <div class="period">
-        Reporte de reservas para el período: {{ report_period_start }} - {{ report_period_end }}
+        Reporte de reservas para el período: {{ report_period_start|format_date }} - {{ report_period_end|format_date }}
     </div>
 
     {% if custom_message %}
@@ -100,9 +100,14 @@
     <p>Nos complace informarle que se han realizado las siguientes reservas para su(s) propiedad(es):</p>
 
     <div style="margin-bottom: 15px;">
-        <strong>Nota importante</strong>: Este informe incluye solo las reservas del mes actual ({{ first_day_of_month|date }} - {{ last_day_of_month|date }}). 
+        <strong>Nota importante</strong>: 
+        {% if has_split_bookings %}
+        Este informe incluye solo las reservas del mes actual ({{ first_day_of_month|format_date }} - {{ last_day_of_month|format_date }}). 
         Los pagos se procesan al final de cada mes. Si una reserva comenzó en un mes anterior o continúa en un mes posterior, 
         solo se incluyen en este pago las noches del mes actual.
+        {% else %}
+        Este informe incluye las reservas para el período indicado. Los pagos se procesan al final de cada mes.
+        {% endif %}
     </div>
 
     <table>
@@ -113,8 +118,8 @@
                 <th>Entrada</th>
                 <th>Salida</th>
                 <th>Noches (Total)</th>
-                <th>Noches (Mes Actual)</th>
-                <th>Importe Mes Actual</th>
+                <th>{% if has_split_bookings %}Noches (Mes Actual){% else %}Noches{% endif %}</th>
+                <th>{% if has_split_bookings %}Importe Mes Actual{% else %}Importe Total{% endif %}</th>
                 <th>Tarifa Admin ({{ admin_fee_percentage }}%)</th>
                 <th>Su Ganancia</th>
             </tr>
@@ -124,24 +129,24 @@
             <tr>
                 <td>{{ booking.apartment_name }}</td>
                 <td>{{ booking.guest_name }}</td>
-                <td>{{ booking.check_in|date }}</td>
-                <td>{{ booking.check_out|date }}</td>
+                <td>{{ booking.check_in|format_date }}</td>
+                <td>{{ booking.check_out|format_date }}</td>
                 <td>{{ booking.total_nights }}</td>
                 <td>{{ booking.current_month_nights }}</td>
-                <td>${{ booking.current_month_amount|floatformat:2 }}</td>
-                <td>${{ booking.admin_fee|floatformat:2 }}</td>
-                <td>${{ booking.owner_amount|floatformat:2 }}</td>
+                <td>${{ "%.2f"|format(booking.current_month_amount) }}</td>
+                <td>${{ "%.2f"|format(booking.admin_fee) }}</td>
+                <td>${{ "%.2f"|format(booking.owner_amount) }}</td>
             </tr>
             {% if booking.previous_month_nights > 0 or booking.future_month_nights > 0 %}
             <tr style="background-color: #f9f9f9; font-style: italic; font-size: 0.9em;">
                 <td colspan="4" style="text-align: right; color: #666;">Desglose por períodos:</td>
                 <td colspan="5">
                     {% if booking.previous_month_nights > 0 %}
-                    <div>Mes anterior: {{ booking.previous_month_nights }} noches - ${{ booking.previous_month_amount|floatformat:2 }} (ya incluido en pago anterior)</div>
+                    <div>Mes anterior: {{ booking.previous_month_nights }} noches - ${{ "%.2f"|format(booking.previous_month_amount) }} (ya incluido en pago anterior)</div>
                     {% endif %}
-                    <div>Mes actual: {{ booking.current_month_nights }} noches - ${{ booking.current_month_amount|floatformat:2 }} (incluido en este pago)</div>
+                    <div>Mes actual: {{ booking.current_month_nights }} noches - ${{ "%.2f"|format(booking.current_month_amount) }} (incluido en este pago)</div>
                     {% if booking.future_month_nights > 0 %}
-                    <div>Próximo mes: {{ booking.future_month_nights }} noches - ${{ booking.future_month_amount|floatformat:2 }} (se incluirá en pago futuro)</div>
+                    <div>Próximo mes: {{ booking.future_month_nights }} noches - ${{ "%.2f"|format(booking.future_month_amount) }} (se incluirá en pago futuro)</div>
                     {% endif %}
                 </td>
             </tr>
@@ -152,21 +157,26 @@
 
     <div class="summary">
         <div class="summary-title">Resumen Financiero:</div>
-        <p>Importe a pagar este mes: ${{ current_month_amount|floatformat:2 }}</p>
-        <p>Total Tarifa Administrativa: ${{ total_admin_fee|floatformat:2 }}</p>
-        <p class="total">Su Ganancia Total (mes actual): ${{ total_owner_amount|floatformat:2 }}</p>
         
-        {% if previous_month_amount > 0 or future_month_amount > 0 %}
+        {% if has_split_bookings %}
+        <p>Importe a pagar este mes: ${{ "%.2f"|format(current_month_amount) }}</p>
+        <p>Total Tarifa Administrativa: ${{ "%.2f"|format(total_admin_fee) }}</p>
+        <p class="total">Su Ganancia Total (mes actual): ${{ "%.2f"|format(total_owner_amount) }}</p>
+        
         <div style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">
             <div style="font-weight: bold; margin-bottom: 10px;">Detalle de importes en otros períodos:</div>
             {% if previous_month_amount > 0 %}
-            <p>Importe en meses anteriores: ${{ previous_month_amount|floatformat:2 }} (ya incluido en pagos anteriores)</p>
+            <p>Importe en meses anteriores: ${{ "%.2f"|format(previous_month_amount) }} (ya incluido en pagos anteriores)</p>
             {% endif %}
             {% if future_month_amount > 0 %}
-            <p>Importe en meses futuros: ${{ future_month_amount|floatformat:2 }} (se incluirá en pagos futuros)</p>
+            <p>Importe en meses futuros: ${{ "%.2f"|format(future_month_amount) }} (se incluirá en pagos futuros)</p>
             {% endif %}
-            <p>Importe total de todas las reservas: ${{ total_amount|floatformat:2 }}</p>
+            <p>Importe total de todas las reservas: ${{ "%.2f"|format(total_amount) }}</p>
         </div>
+        {% else %}
+        <p>Importe Total: ${{ "%.2f"|format(total_amount) }}</p>
+        <p>Total Tarifa Administrativa: ${{ "%.2f"|format(total_admin_fee) }}</p>
+        <p class="total">Su Ganancia Total: ${{ "%.2f"|format(total_owner_amount) }}</p>
         {% endif %}
     </div>
 

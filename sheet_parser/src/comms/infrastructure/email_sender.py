@@ -12,19 +12,30 @@ logger = get_logger(__name__)
 class EmailSender:
     """Client for sending emails using Resend.com"""
     
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize the email sender with the Resend API key."""
+    def __init__(self, api_key: Optional[str] = None, from_email: Optional[str] = None):
+        """
+        Initialize the email sender with the Resend API key and default from email.
+        
+        Args:
+            api_key: Resend API key. If not provided, uses RESEND_API_KEY environment variable.
+            from_email: Default from email address. If not provided, uses FROM_EMAIL environment 
+                        variable or falls back to onboarding@resend.dev
+        """
         self.api_key = api_key or os.environ.get("RESEND_API_KEY")
         if not self.api_key:
             logger.warning("No Resend API key provided. Emails will not be sent.")
         else:
             resend.api_key = self.api_key
+            
+        # Set default from email address
+        self.default_from_email = from_email or os.environ.get("FROM_EMAIL", "onboarding@resend.dev")
+        logger.info(f"Using default from email: {self.default_from_email}")
     
     def send_email(self, 
-                  from_email: str,
                   to_email: str,
                   subject: str,
                   html_content: str,
+                  from_email: Optional[str] = None,
                   cc: Optional[List[str]] = None,
                   bcc: Optional[List[str]] = None,
                   reply_to: Optional[str] = None,
@@ -33,10 +44,10 @@ class EmailSender:
         Send an email using Resend.
         
         Args:
-            from_email: Sender email address
             to_email: Recipient email address
             subject: Email subject
             html_content: HTML content of the email
+            from_email: Sender email address (optional, uses default if not provided)
             cc: List of CC recipients
             bcc: List of BCC recipients
             reply_to: Reply-to email address
@@ -52,11 +63,14 @@ class EmailSender:
             logger.error("Cannot send email: No Resend API key configured")
             return False, None, "No API key configured"
         
+        # Use provided from_email or default to the configured default
+        sender_email = from_email or self.default_from_email
+        
         try:
-            logger.info(f"Sending email to {to_email} with subject: {subject}")
+            logger.info(f"Sending email to {to_email} from {sender_email} with subject: {subject}")
             
             params = {
-                "from": from_email,
+                "from": sender_email,
                 "to": to_email,
                 "subject": subject,
                 "html": html_content,

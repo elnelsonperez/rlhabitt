@@ -32,22 +32,14 @@ class CommunicationsService:
             autoescape=jinja2.select_autoescape(['html', 'xml'])
         )
         
-        # Add date filter
-        self.jinja_env.filters['date'] = self._format_date
-        self.jinja_env.filters['floatformat'] = self._format_float
+        # Add date formatting function for templates
+        self.jinja_env.filters['format_date'] = self._format_date
     
     def _format_date(self, value):
         """Format a date for display in templates."""
         if isinstance(value, (datetime, date)):
             return value.strftime('%d/%m/%Y')
         return value
-    
-    def _format_float(self, value, precision=2):
-        """Format a float with specified precision."""
-        try:
-            return f"{float(value):.{precision}f}"
-        except (ValueError, TypeError):
-            return value
     
     def find_new_bookings(self, last_run_date: datetime) -> List[Dict]:
         """Find bookings created since the last run date with buffer."""
@@ -248,6 +240,12 @@ class CommunicationsService:
     
     def calculate_financial_totals(self, bookings: List[Dict]) -> Dict[str, float]:
         """Calculate financial totals for a list of bookings."""
+        # Calculate if any bookings span multiple months
+        has_split_bookings = any(
+            b['previous_month_nights'] > 0 or b['future_month_nights'] > 0 
+            for b in bookings
+        )
+        
         totals = {
             # Total booking amounts
             'total_amount': sum(float(b['total_amount']) for b in bookings),
@@ -266,7 +264,10 @@ class CommunicationsService:
             # Count totals
             'total_bookings': len(bookings),
             'total_nights': sum(int(b['total_nights']) for b in bookings),
-            'current_month_nights': sum(int(b['current_month_nights']) for b in bookings)
+            'current_month_nights': sum(int(b['current_month_nights']) for b in bookings),
+            
+            # Flag for template to know if any bookings span multiple months
+            'has_split_bookings': has_split_bookings
         }
         
         return totals
@@ -359,7 +360,6 @@ class CommunicationsService:
         
         # Send email
         success, message_id, error = self.email_sender.send_email(
-            from_email="notificaciones@rlhabitt.com",
             to_email=communication.recipient_email,
             subject=communication.subject,
             html_content=html_content
