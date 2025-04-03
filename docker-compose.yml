@@ -35,16 +35,25 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - IMPORT_MONTHS=1
       - LOG_FILE_PATH=/proc/1/fd/1
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - FROM_EMAIL=${FROM_EMAIL}
     volumes:
       - sheet_parser_logs:/var/log/sheet_parser
       - onedrive_tokens:/app/token_cache
     entrypoint: /bin/bash
     command: >
-      -c "echo 'Scheduler container started. Running import script every 10 minutes.' &&
+      -c "echo 'Scheduler container started. Running scheduled scripts.' &&
           while true; do
-            echo '[SCHEDULER] Running scheduled import at $(date)'
+            echo \"[SCHEDULER] Running scheduled import at \$(date)\"
             cd /app && python -m src.scheduled_import
-            echo '[SCHEDULER] Waiting for next run...'
+            
+            echo \"[SCHEDULER] Running communication queue check at \$(date)\"
+            cd /app && python -m src.comms.scripts.queue_communications
+            
+            echo \"[SCHEDULER] Running communication sender at \$(date)\"
+            cd /app && python -m src.comms.scripts.send_communications
+            
+            echo \"[SCHEDULER] All tasks completed. Waiting for next run...\"
             sleep 600
           done"
 
