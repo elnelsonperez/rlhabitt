@@ -48,11 +48,13 @@ export function AppLayout() {
   }
   
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-x-hidden">
       <Header />
       <NotificationsBar pollingInterval={120000} />
-      <main className="flex-1 p-4">
-        <Outlet />
+      <main className="flex-1 p-4 pt-6 mt-[64px]">
+        <div className="pt-2"> {/* Extra padding when notification bar is present */}
+          <Outlet />
+        </div>
       </main>
     </div>
   )

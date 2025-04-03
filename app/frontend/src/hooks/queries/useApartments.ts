@@ -32,7 +32,7 @@ export interface ApartmentFilters {
  */
 export function useInfiniteApartments(
   filters: ApartmentFilters = {},
-  pageSize: number = 10
+  pageSize: number = 8
 ) {
   const { isAuthenticated } = useAuthStore();
   

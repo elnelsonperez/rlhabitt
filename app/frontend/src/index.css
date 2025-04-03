@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* Add margins to account for fixed header and notification bar */
+.notification-bar + main {
+  margin-top: 97px !important; /* 64px header + 33px notification */
+}
+
+/* When notification is absent */
+.notification-bar-placeholder + main {
+  margin-top: 64px !important; /* Just the header height */
+}

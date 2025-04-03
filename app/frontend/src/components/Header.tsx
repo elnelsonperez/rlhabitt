@@ -20,50 +20,77 @@ export function Header() {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
+
   
   return (
-    <header className="bg-gray-800 text-white p-4">
+    <header className="bg-gray-800 text-white p-4 fixed top-0 left-0 right-0 z-50 shadow-md">
       <div className="container mx-auto flex justify-between items-center">
         <div className="flex items-center space-x-6">
           <div className="text-xl font-bold">RL HABITT</div>
           
           {/* Navigation Links */}
           {user && (
-            <nav className="flex space-x-4">
+            <nav className="flex space-x-2">
               <Link
                 to="/reservations"
                 search={{}}
                 activeProps={{ 
-                  className: 'text-white border-b-2 border-blue-400 pb-1'
+                  className: 'flex items-center bg-blue-700 text-white rounded-md p-2 overflow-hidden transition-all duration-300 ease-in-out w-[9.5rem] group'
                 }}
                 inactiveProps={{ 
-                  className: 'text-gray-300 hover:text-white pb-1 border-b-2 border-transparent'
+                  className: 'flex items-center bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-md p-2 overflow-hidden transition-all duration-300 ease-in-out w-10 hover:w-[9.5rem] group'
                 }}
-              >
-                Tabla de Reservas
-              </Link>
+                children={({ isActive }) => (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span className={`ml-2 whitespace-nowrap transition-opacity duration-300 ease-in-out ${isActive ? 'opacity-100 w-auto' : 'opacity-0 group-hover:opacity-100 w-0 group-hover:w-auto'}`}>
+                      Reservas
+                    </span>
+                  </>
+                )}
+              />
+              
               <Link
                 to="/communications"
                 activeProps={{ 
-                  className: 'text-white border-b-2 border-blue-400 pb-1'
+                  className: 'flex items-center bg-blue-700 text-white rounded-md p-2 overflow-hidden transition-all duration-300 ease-in-out w-[12rem] group'
                 }}
                 inactiveProps={{ 
-                  className: 'text-gray-300 hover:text-white pb-1 border-b-2 border-transparent'
+                  className: 'flex items-center bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-md p-2 overflow-hidden transition-all duration-300 ease-in-out w-10 hover:w-[12rem] group'
                 }}
-              >
-                Comunicaciones
-              </Link>
+                children={({ isActive }) => (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span className={`ml-2 whitespace-nowrap transition-opacity duration-300 ease-in-out ${isActive ? 'opacity-100 w-auto' : 'opacity-0 group-hover:opacity-100 w-0 group-hover:w-auto'}`}>
+                      Comunicaciones
+                    </span>
+                  </>
+                )}
+              />
+              
               <Link
                 to="/apartments"
                 activeProps={{ 
-                  className: 'text-white border-b-2 border-blue-400 pb-1'
+                  className: 'flex items-center bg-blue-700 text-white rounded-md p-2 overflow-hidden transition-all duration-300 ease-in-out w-[11rem] group'
                 }}
                 inactiveProps={{ 
-                  className: 'text-gray-300 hover:text-white pb-1 border-b-2 border-transparent'
+                  className: 'flex items-center bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-md p-2 overflow-hidden transition-all duration-300 ease-in-out w-10 hover:w-[11rem] group'
                 }}
-              >
-                Apartamentos
-              </Link>
+                children={({ isActive }) => (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <span className={`ml-2 whitespace-nowrap transition-opacity duration-300 ease-in-out ${isActive ? 'opacity-100 w-auto' : 'opacity-0 group-hover:opacity-100 w-0 group-hover:w-auto'}`}>
+                      Apartamentos
+                    </span>
+                  </>
+                )}
+              />
             </nav>
           )}
           
