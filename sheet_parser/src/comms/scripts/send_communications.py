@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 import sqlalchemy
 
 from src.logger import get_logger
+from src.db import get_db_session
 from src.comms.infrastructure.db_repository import CommunicationsRepository
 from src.comms.infrastructure.email_sender import EmailSender
-from src.comms.infrastructure.db_connection import get_db_session
 from src.comms.service.communications_service import CommunicationsService
 
 logger = get_logger(__name__)
@@ -77,10 +77,10 @@ def main():
         logger.info("Finished processing communications")
         
     except sqlalchemy.exc.SQLAlchemyError as e:
-        logger.error(f"Database error: {str(e)}")
+        logger.exception(f"Database error: {str(e)}")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Error processing communications: {str(e)}")
+        logger.exception(f"Error processing communications: {str(e)}")
         sys.exit(1)
     finally:
         if session:

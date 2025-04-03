@@ -3,78 +3,16 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 
-from sqlalchemy import (
-    MetaData, Column, String, Integer, Boolean,
-    ForeignKey, DateTime, Date, select,
-    update, and_,  text
-)
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy import select, update, and_, text
+from sqlalchemy.orm import Session
 
-Base = declarative_base()
-metadata = MetaData()
-
-# Define enum types
-communication_status = ENUM(
-    'pending', 'approved', 'sent', 'failed',
-    name='communication_status'
+from src.logger import get_logger
+from src.models import (
+    Communication, BookingCommunication, ScriptRun,
+    Booking, Apartment, Owner, Guest
 )
 
-communication_type = ENUM(
-    'new_booking',
-    name='communication_type'
-)
-
-communication_channel = ENUM(
-    'email',
-    name='communication_channel'
-)
-
-# Define SQLAlchemy models
-class Communication(Base):
-    __tablename__ = 'communications'
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    status = Column(communication_status, nullable=False, default='pending')
-    comm_type = Column(communication_type, nullable=False)
-    channel = Column(communication_channel, nullable=False, default='email')
-    owner_id = Column(UUID(as_uuid=True), ForeignKey('owners.id'), nullable=False)
-    recipient_email = Column(String, nullable=False)
-    retry_count = Column(Integer, nullable=False, default=0)
-    last_retry_at = Column(DateTime(timezone=True))
-    approved_at = Column(DateTime(timezone=True))
-    approved_by = Column(UUID(as_uuid=True), ForeignKey('auth.users.id'))
-    subject = Column(String, nullable=False)
-    content = Column(String)
-    custom_message = Column(String)
-    report_period_start = Column(Date)
-    report_period_end = Column(Date)
-    comm_metadata = Column(JSONB, default={})
-
-    # Relationships
-    booking_communications = relationship("BookingCommunication", back_populates="communication")
-
-
-class BookingCommunication(Base):
-    __tablename__ = 'booking_communications'
-
-    communication_id = Column(UUID(as_uuid=True), ForeignKey('communications.id', ondelete='CASCADE'), primary_key=True)
-    booking_id = Column(UUID(as_uuid=True), ForeignKey('bookings.id', ondelete='CASCADE'), primary_key=True)
-    excluded = Column(Boolean, nullable=False, default=False)
-
-    # Relationships
-    communication = relationship("Communication", back_populates="booking_communications")
-
-
-class ScriptRun(Base):
-    __tablename__ = 'script_runs'
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    script_name = Column(String, unique=True, nullable=False)
-    last_run_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    run_metadata = Column(JSONB, default={})
+logger = get_logger(__name__)
 
 
 class CommunicationsRepository:
@@ -108,10 +46,24 @@ class CommunicationsRepository:
 
     def get_new_bookings(self, since: datetime, buffer_days: int = 1) -> List[Dict]:
         """
-        Get bookings created since the specified time with a buffer period.
-        Buffer ensures we don't process very recent bookings immediately.
+        Get bookings for the current month where check-in was at least buffer_days ago.
+        Only includes reservations for the current month (between the first and last day).
         """
-        buffer_cutoff = datetime.utcnow() - timedelta(days=buffer_days)
+        # Get current date and calculate the buffer cutoff (bookings with check-in older than this)
+        today = datetime.now().date()
+        check_in_cutoff = today - timedelta(days=buffer_days)
+        
+        # Calculate the first and last day of the current month
+        first_day_of_month = today.replace(day=1)
+        # Calculate the last day of the current month
+        if today.month == 12:
+            last_day_of_month = today.replace(day=31)
+        else:
+            # Get the first day of next month and subtract one day
+            next_month = today.replace(month=today.month + 1, day=1)
+            last_day_of_month = next_month - timedelta(days=1)
+        
+        logger.info(f"Looking for bookings between {first_day_of_month} and {last_day_of_month} with check-in before {check_in_cutoff}")
         
         # Using text to allow for complex joins that might be easier to express in raw SQL
         stmt = text("""
@@ -124,8 +76,11 @@ class CommunicationsRepository:
             JOIN apartments a ON b.apartment_id = a.id
             JOIN owners o ON a.owner_id = o.id
             LEFT JOIN guests g ON b.guest_id = g.id
-            WHERE b.created_at > :since
-            AND b.created_at < :buffer_cutoff
+            WHERE b.check_in <= :check_in_cutoff
+            -- Booking overlaps with current month:
+            -- Booking starts before or in current month AND ends during or after current month
+            AND b.check_in <= :last_day_of_month 
+            AND b.check_out >= :first_day_of_month
             AND NOT EXISTS (
                 SELECT 1 FROM booking_communications bc
                 WHERE bc.booking_id = b.id
@@ -133,7 +88,14 @@ class CommunicationsRepository:
             ORDER BY o.id, b.check_in
         """)
         
-        result = self.session.execute(stmt, {"since": since, "buffer_cutoff": buffer_cutoff})
+        result = self.session.execute(
+            stmt, 
+            {
+                "check_in_cutoff": check_in_cutoff,
+                "first_day_of_month": first_day_of_month,
+                "last_day_of_month": last_day_of_month
+            }
+        )
         
         # Convert to dictionaries
         bookings = [dict(row._mapping) for row in result]

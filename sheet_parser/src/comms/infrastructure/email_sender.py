@@ -79,10 +79,10 @@ class EmailSender:
             
         except ResendError as e:
             error_message = f"Failed to send email: {str(e)}"
-            logger.error(error_message)
+            logger.exception(error_message)
             return False, None, error_message
         
         except Exception as e:
             error_message = f"Unexpected error sending email: {str(e)}"
-            logger.error(error_message)
+            logger.exception(error_message)
             return False, None, error_message
