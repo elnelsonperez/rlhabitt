@@ -14,7 +14,9 @@ export type Apartment = Database['public']['Tables']['apartments']['Row'] & {
   owners?: OwnerRef | null
 }
 
-export type Reservation = Database['public']['Tables']['reservations']['Row']
+export type Reservation = Database['public']['Tables']['reservations']['Row'] & {
+  has_communication?: boolean
+}
 export type Building = Database['public']['Tables']['buildings']['Row']
 
 export interface ReservationsByDay {
@@ -88,11 +90,31 @@ export function useReservations(buildingId: string, year: number, month: number)
       if (reservationsError) {
         throw reservationsError
       }
+
+      // Get booking IDs with communications
+      const { data: bookingsWithComms, error: bookingCommsError } = await supabase
+        .from('booking_communications')
+        .select('booking_id')
+        .in('booking_id', reservations.map(res => res.booking_id))
+        .eq('excluded', false)
+        
+      if (bookingCommsError) {
+        throw bookingCommsError
+      }
+      
+      // Create a set of booking IDs that have communications for quick lookup
+      const bookingIdsWithComms = new Set(bookingsWithComms.map(bwc => bwc.booking_id))
+      
+      // Add has_communication flag to reservations
+      const enhancedReservations = reservations.map(reservation => ({
+        ...reservation,
+        has_communication: bookingIdsWithComms.has(reservation.booking_id)
+      }))
       
       // Organize reservations by date and apartment for easier rendering
       const reservationsByDay: ReservationsByDay = {}
       
-      reservations.forEach(reservation => {
+      enhancedReservations.forEach(reservation => {
         if (!reservationsByDay[reservation.date]) {
           reservationsByDay[reservation.date] = {}
         }

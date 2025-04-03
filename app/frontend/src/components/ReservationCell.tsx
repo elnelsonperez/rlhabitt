@@ -92,6 +92,17 @@ export function ReservationCell({ reservation, date }: ReservationCellProps) {
           </span>
         </div>
         
+        {/* Envelope icon for bookings with communications */}
+        {reservation?.has_communication && (
+          <div className="absolute top-3.5 left-1 text-xs font-medium z-10">
+            <span className="p-0.5 rounded-sm text-gray-600 shadow-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </span>
+          </div>
+        )}
+        
         {/* Rate display with tooltip for comments */}
         {reservation && reservation.rate > 0 && (
           <div 
