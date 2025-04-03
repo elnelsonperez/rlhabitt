@@ -3,6 +3,7 @@ import { useReservations } from '../hooks/queries/useReservations'
 import { useBuildings } from '../hooks/queries/useBuildings'
 import { ReservationCell } from '../components/ReservationCell'
 import { TimeframeSelector } from '../components/TimeframeSelector'
+import { WithTooltip } from '../components/CustomTooltip'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 
 
@@ -239,26 +240,48 @@ export function ReservationsGridPage() {
                         {apartment.code || apartment.raw_text}
                       </div>
                       {apartment.owners && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate({
-                              to: '/monthly-breakdown',
-                              search: {
-                                ownerId: apartment.owners?.id || '',
-                                year: year.toString(),
-                                month: month.toString(),
-                                buildingId: selectedBuildingId
-                              },
-                            })
-                          }}
-                          className="p-0.5 bg-gray-100 border border-gray-200 rounded hover:bg-blue-100 hover:border-blue-300 hover:text-blue-600 transition-all transform hover:scale-110 cursor-pointer"
-                          title={`Enviar resumen mensual a ${apartment.owners.name}`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                        </button>
+                        apartment.owners.email ? (
+                          <WithTooltip text={`Enviar resumen mensual a ${apartment.owners.name} (${apartment.owners.email})`}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate({
+                                  to: '/monthly-breakdown',
+                                  search: {
+                                    ownerId: apartment.owners?.id || '',
+                                    year: year.toString(),
+                                    month: month.toString(),
+                                    buildingId: selectedBuildingId
+                                  },
+                                })
+                              }}
+                              className="p-0.5 bg-gray-100 border border-gray-200 rounded hover:bg-blue-100 hover:border-blue-300 hover:text-blue-600 transition-all transform hover:scale-110 cursor-pointer"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                            </button>
+                          </WithTooltip>
+                        ) : (
+                          <WithTooltip text={`${apartment.owners.name} no tiene email configurado.\nHaga clic para añadir un email.`}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate({
+                                  to: '/owners/$ownerId',
+                                  params: {
+                                    ownerId: apartment.owners?.id || '',
+                                  }
+                                })
+                              }}
+                              className="p-0.5 bg-amber-100 border border-amber-200 rounded hover:bg-amber-200 hover:border-amber-300 hover:text-amber-800 transition-all transform hover:scale-110 cursor-pointer"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                              </svg>
+                            </button>
+                          </WithTooltip>
+                        )
                       )}
                     </div>
                     {apartment.owners && apartment.owners.name !== (apartment.code || apartment.raw_text) && (

@@ -7,6 +7,7 @@ import { Database } from '../../lib/supabase/database.types'
 export type OwnerRef = {
   id: string;
   name: string;
+  email: string | null;
 }
 
 // Extend Apartment type to include the owner
@@ -63,7 +64,7 @@ export function useReservations(buildingId: string, year: number, month: number)
         .from('apartments')
         .select(`
           id, code, raw_text, owner_id, building_id, active, description, created_at, updated_at, admin_fee_percentage,
-          owners:owner_id (id, name)
+          owners:owner_id (id, name, email)
         `)
         .eq('building_id', buildingId)
         .order('raw_text', { ascending: true })
