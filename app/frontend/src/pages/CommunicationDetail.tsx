@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { useCommunication, useApproveCommunication, useUpdateCustomMessage } from '../hooks/queries/useCommunications';
+import { useCommunication, useApproveCommunication, useUpdateCustomMessage, useBookingReservations } from '../hooks/queries/useCommunications';
 import { BookingCommunicationWithRelations } from '../lib/api/commsClient';
 import { EmailPreviewModal } from '../components/EmailPreviewModal';
 
@@ -47,9 +47,74 @@ const getStatusText = (status: string) => {
   }
 };
 
-export function CommunicationDetailPage() {
-  const { communicationId } = useParams({ from: '/layout/communications/$communicationId' });
+// BookingRow component to handle individual booking display with reservation rates
+interface BookingRowProps {
+  bookingComm: BookingCommunicationWithRelations;
+  isExcluded: boolean;
+  isPending: boolean;
+  onToggleExclusion: (bookingId: string) => void;
+}
+
+const BookingRow = ({ 
+  bookingComm, 
+  isExcluded, 
+  isPending, 
+  onToggleExclusion
+}: BookingRowProps) => {
+  // Fetch reservation rates for this booking
+  const { data: reservations } = useBookingReservations(bookingComm.booking_id);
   
+  // Calculate the total rate from reservations - only when we have data
+  const calculatedRate = reservations?.reduce((sum, res) => sum + (parseFloat(String(res.rate)) || 0), 0) || 0;
+  
+  return (
+      <tr className={isExcluded ? 'bg-gray-50 text-gray-400' : ''}>
+        {isPending && (
+            <td className="px-6 py-4 whitespace-nowrap">
+              <input
+                  type="checkbox"
+                  checked={!isExcluded}
+                  onChange={() => onToggleExclusion(bookingComm.booking_id)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+            </td>
+        )}
+        <td className="px-6 py-4 whitespace-nowrap">
+          {bookingComm.booking?.apartment?.code || 'Desconocido'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          {bookingComm.booking?.guest?.name || 'Desconocido'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          {bookingComm.booking?.check_in ? formatDate(bookingComm.booking.check_in) : 'N/A'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap">
+          {bookingComm.booking?.check_out ? formatDate(bookingComm.booking.check_out) : 'N/A'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap relative">
+          <span className="font-medium">${bookingComm.booking?.total_amount?.toFixed(2) || '0.00'}</span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap relative">
+          {/* Show the sum of reservation rates */}
+          {reservations ? (
+              <div className="flex items-center">
+                <span className="font-medium">${calculatedRate.toFixed(2)}</span>
+                {reservations.length > 0 && (
+                    <span className="ml-1 text-xs text-green-600">({reservations.length} noches)</span>
+                )}
+              </div>
+          ) : (
+              <span className="italic text-gray-400">Cargando...</span>
+          )}
+        </td>
+
+      </tr>
+  );
+};
+
+export function CommunicationDetailPage() {
+  const {communicationId} = useParams({from: '/layout/communications/$communicationId'});
+
   // Local state for form and UI
   const [excludedBookingIds, setExcludedBookingIds] = useState<string[]>([]);
   const [customMessage, setCustomMessage] = useState<string>('');
@@ -92,23 +157,7 @@ export function CommunicationDetailPage() {
     });
   };
   
-  // Calculate financial summary
-  const calculateSummary = () => {
-    if (!data?.bookings) return { totalAmount: 0, includedAmount: 0 };
-    
-    const totalAmount = data.bookings.reduce((sum, item) => {
-      return sum + (item.booking?.total_amount || 0);
-    }, 0);
-    
-    const includedAmount = data.bookings.reduce((sum, item) => {
-      if (excludedBookingIds.includes(item.booking_id)) return sum;
-      return sum + (item.booking?.total_amount || 0);
-    }, 0);
-    
-    return { totalAmount, includedAmount };
-  };
-  
-  const { totalAmount, includedAmount } = calculateSummary();
+  // For now, just remove the total row calculation since we're not using it
   
   return (
     <div className="container mx-auto p-4">
@@ -209,85 +258,56 @@ export function CommunicationDetailPage() {
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
-                  <tr>
-                    {data.communication.status === 'pending' && (
+                <tr>
+                  {data.communication.status === 'pending' && (
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Incluir
                       </th>
-                    )}
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Apartamento
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Huésped
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Entrada
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Salida
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Importe
-                    </th>
-                  </tr>
+                  )}
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Apartamento
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Huésped
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Entrada
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Salida
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Pagado por cliente
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Importe
+                  </th>
+                </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {data.bookings.length === 0 ? (
+                {data.bookings.length === 0 ? (
                     <tr>
-                      <td colSpan={data.communication.status === 'pending' ? 6 : 5} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={data.communication.status === 'pending' ? 9 : 8} className="px-6 py-4 text-center text-gray-500">
                         No hay reservas asociadas
                       </td>
                     </tr>
                   ) : (
                     data.bookings.map((bookingComm: BookingCommunicationWithRelations) => {
                       const isExcluded = excludedBookingIds.includes(bookingComm.booking_id) || bookingComm.excluded;
+                      const isPending = data.communication.status === 'pending';
                       
                       return (
-                        <tr 
+                        <BookingRow 
                           key={bookingComm.booking_id}
-                          className={isExcluded ? 'bg-gray-50 text-gray-400' : ''}
-                        >
-                          {data.communication.status === 'pending' && (
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <input
-                                type="checkbox"
-                                checked={!excludedBookingIds.includes(bookingComm.booking_id)}
-                                onChange={() => toggleBookingExclusion(bookingComm.booking_id)}
-                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                              />
-                            </td>
-                          )}
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {bookingComm.booking?.apartment?.code || 'Desconocido'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {bookingComm.booking?.guest?.name || 'Desconocido'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {bookingComm.booking?.check_in ? formatDate(bookingComm.booking.check_in) : 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {bookingComm.booking?.check_out ? formatDate(bookingComm.booking.check_out) : 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            ${bookingComm.booking?.total_amount?.toFixed(2) || '0.00'}
-                          </td>
-                        </tr>
+                          bookingComm={bookingComm}
+                          isExcluded={isExcluded}
+                          isPending={isPending}
+                          onToggleExclusion={toggleBookingExclusion}
+                        />
                       );
                     })
                   )}
                 </tbody>
-                <tfoot className="bg-gray-50">
-                  <tr>
-                    <td colSpan={data.communication.status === 'pending' ? 5 : 4} className="px-6 py-4 text-right font-medium">
-                      Total:
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium">
-                      ${includedAmount.toFixed(2)} / ${totalAmount.toFixed(2)}
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           </div>

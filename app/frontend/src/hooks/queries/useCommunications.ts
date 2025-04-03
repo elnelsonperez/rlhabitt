@@ -116,3 +116,14 @@ export function useUpdateCustomMessage() {
   });
 }
 
+/**
+ * Hook for fetching booking reservations to calculate accurate rates
+ */
+export function useBookingReservations(bookingId: string | undefined) {
+  return useQuery({
+    queryKey: ['booking_reservations', bookingId],
+    queryFn: () => bookingId ? commsClient.getBookingReservations(bookingId) : null,
+    enabled: !!bookingId
+  });
+}
+

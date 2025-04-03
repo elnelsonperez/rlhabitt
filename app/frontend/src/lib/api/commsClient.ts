@@ -157,6 +157,7 @@ export const commsClient = {
           check_in,
           check_out,
           total_amount,
+          nights,
           apartment:apartment_id (
             code,
             admin_fee_percentage
@@ -260,5 +261,22 @@ export const commsClient = {
     }
     
     return await response.json();
+  },
+  
+  /**
+   * Get all reservations for a specific booking to calculate accurate rates
+   */
+  async getBookingReservations(bookingId: string) {
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('id, date, rate')
+      .eq('booking_id', bookingId)
+      .order('date');
+      
+    if (error) {
+      throw error;
+    }
+    
+    return data;
   }
 };

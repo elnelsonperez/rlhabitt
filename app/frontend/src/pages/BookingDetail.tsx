@@ -172,7 +172,7 @@ export function BookingDetailPage() {
                   <div className="overflow-hidden border rounded-lg">
                     <div className="max-h-[400px] overflow-y-auto">
                       <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
+                        <thead className="bg-gray-50 sticky top-0 z-20">
                           <tr>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Fecha
@@ -183,6 +183,20 @@ export function BookingDetailPage() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
+                          {/* Total sum row - sticky below the header */}
+                          <tr className="bg-blue-50 font-medium sticky top-[37px] z-10 shadow-sm">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              Total ({data.reservations.length} días)
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                              ${data.reservations.reduce((sum, res) => sum + (res.rate || 0), 0).toFixed(2)}
+                            </td>
+                          </tr>
+                          {/* Separator row */}
+                          <tr className="bg-gray-100">
+                            <td colSpan={2} className="h-1 p-0"></td>
+                          </tr>
+                          {/* Daily rates */}
                           {data.reservations.map(reservation => (
                             <tr key={reservation.id} className="hover:bg-gray-50">
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

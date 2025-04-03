@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useAuthStore } from '../store/auth'
-import { useNotificationStore } from '../store/notificationStore'
 
 export function Header() {
   const { user, logout } = useAuthStore()
-  const { pendingCommunicationsCount } = useNotificationStore()
   const [showMenu, setShowMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   
@@ -42,15 +40,10 @@ export function Header() {
               </Link>
               <Link
                 to="/communications"
-                activeProps={{ className: 'font-bold text-white relative' }}
-                inactiveProps={{ className: 'text-gray-300 hover:text-white relative' }}
+                activeProps={{ className: 'font-bold text-white' }}
+                inactiveProps={{ className: 'text-gray-300 hover:text-white' }}
               >
                 Comunicaciones
-                {pendingCommunicationsCount > 0 && (
-                  <span className="absolute -top-1 -right-4 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center" style={{ fontSize: '0.65rem' }}>
-                    {pendingCommunicationsCount > 9 ? '9+' : pendingCommunicationsCount}
-                  </span>
-                )}
               </Link>
             </nav>
           )}

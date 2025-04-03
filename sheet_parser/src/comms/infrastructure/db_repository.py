@@ -240,3 +240,22 @@ class CommunicationsRepository:
         
         self.session.execute(stmt)
         self.session.commit()
+        
+    def get_booking_reservations(self, booking_id: uuid.UUID) -> List:
+        """
+        Get all reservations for a booking with their rates.
+        
+        Returns:
+            A list of reservation rows with date and rate information
+        """
+        stmt = text("""
+            SELECT 
+                r.id, r.date, r.rate
+            FROM reservations r
+            WHERE r.booking_id = :booking_id
+            ORDER BY r.date
+        """)
+        
+        result = self.session.execute(stmt, {"booking_id": booking_id})
+        reservations = result.all()
+        return reservations

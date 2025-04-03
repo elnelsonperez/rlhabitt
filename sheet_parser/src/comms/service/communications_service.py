@@ -200,28 +200,56 @@ class CommunicationsService:
         logger.info(f"Calculating fees for current month: {first_day_of_month} to {last_day_of_month}")
         
         for booking in bookings:
-            total_amount = float(booking['total_amount'])
             admin_fee_pct = float(booking['admin_fee_percentage'])
             check_in = booking['check_in'].date() if isinstance(booking['check_in'], datetime) else booking['check_in']
             check_out = booking['check_out'].date() if isinstance(booking['check_out'], datetime) else booking['check_out']
             
-            # Calculate total nights and nightly rate
+            # Calculate total nights
             total_nights = (check_out - check_in).days
-            nightly_rate = total_amount / total_nights if total_nights > 0 else 0
+            
+            # Get precise nightly rates from actual reservations
+            reservations = self.repository.get_booking_reservations(booking['id'])
+            
+            # Throw error if no reservations found - we must use actual rates
+            if not reservations:
+                raise ValueError(f"No reservations found for booking {booking['id']}. Cannot calculate accurate rates.")
+            
+            # Calculate total based on actual reservation rates
+            total_calculated_amount = sum(float(res.rate) for res in reservations)
+            
+            # Calculate the average nightly rate for reference
+            avg_nightly_rate = total_calculated_amount / total_nights if total_nights > 0 else 0
             
             # Determine month boundaries for this booking
             current_month_start = max(check_in, first_day_of_month)
             current_month_end = min(check_out, last_day_of_month)
             
-            # Calculate nights in current month
-            current_month_nights = max(0, (current_month_end - current_month_start).days)
-            previous_month_nights = max(0, (current_month_start - check_in).days) if check_in < first_day_of_month else 0
-            future_month_nights = max(0, (check_out - current_month_end).days) if check_out > last_day_of_month else 0
+            # Calculate current, previous, and future month amounts precisely
+            current_month_amount = 0.0
+            previous_month_amount = 0.0
+            future_month_amount = 0.0
             
-            # Calculate amounts for current month
-            current_month_amount = current_month_nights * nightly_rate
-            previous_month_amount = previous_month_nights * nightly_rate
-            future_month_amount = future_month_nights * nightly_rate
+            current_month_nights = 0
+            previous_month_nights = 0
+            future_month_nights = 0
+            
+            # Categorize each reservation by month and sum rates accordingly
+            for res in reservations:
+                res_date = res.date.date() if isinstance(res.date, datetime) else res.date
+                rate = float(res.rate)
+                
+                if first_day_of_month <= res_date <= last_day_of_month:
+                    # Current month
+                    current_month_amount += rate
+                    current_month_nights += 1
+                elif res_date < first_day_of_month:
+                    # Previous month
+                    previous_month_amount += rate
+                    previous_month_nights += 1
+                else:
+                    # Future month
+                    future_month_amount += rate
+                    future_month_nights += 1
             
             # Calculate admin fees
             admin_fee = current_month_amount * (admin_fee_pct / 100)
@@ -231,7 +259,8 @@ class CommunicationsService:
             booking['admin_fee'] = admin_fee
             booking['owner_amount'] = owner_amount
             booking['total_nights'] = total_nights
-            booking['nightly_rate'] = nightly_rate
+            booking['nightly_rate'] = avg_nightly_rate  # Average rate for display
+            booking['calculated_total_amount'] = total_calculated_amount  # True calculated total instead of booking['total_amount']
             booking['current_month_nights'] = current_month_nights
             booking['current_month_amount'] = current_month_amount
             booking['previous_month_nights'] = previous_month_nights
@@ -252,8 +281,8 @@ class CommunicationsService:
         )
         
         totals = {
-            # Total booking amounts
-            'total_amount': sum(float(b['total_amount']) for b in bookings),
+            # Total booking amounts - using calculated amount instead of booking's total_amount
+            'total_amount': sum(float(b['calculated_total_amount']) for b in bookings),
             
             # Current month totals (what will be paid this month)
             'current_month_amount': sum(float(b['current_month_amount']) for b in bookings),
