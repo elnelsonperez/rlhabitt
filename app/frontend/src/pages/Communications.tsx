@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useInfiniteCommunications } from '../hooks/queries/useCommunications';
 import { CommunicationWithRelations } from '../lib/api/commsClient';
 import { Database } from '../lib/supabase/database.types';
@@ -49,9 +49,22 @@ const getStatusText = (status: string) => {
   }
 };
 
+// Helper to get communication type text in Spanish
+const getCommTypeText = (type: string) => {
+  switch (type) {
+    case 'new_booking':
+      return 'Nueva reserva';
+    default:
+      return type;
+  }
+};
+
 export function CommunicationsPage() {
+  const navigate = useNavigate();
+  
   // State for filters
   const [statusFilter, setStatusFilter] = useState<Database['public']['Enums']['communication_status'] | ''>('');
+  const [typeFilter, setTypeFilter] = useState<Database['public']['Enums']['communication_type'] | ''>('');
   const [sortField, setSortField] = useState<string>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
@@ -65,6 +78,7 @@ export function CommunicationsPage() {
     error
   } = useInfiniteCommunications({
     status: statusFilter ? (statusFilter as any) : undefined,
+    type: typeFilter ? (typeFilter as any) : undefined,
     sortBy: sortField,
     sortOrder
   });
@@ -72,6 +86,11 @@ export function CommunicationsPage() {
   // Handle status filter change
   const handleStatusFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setStatusFilter(e.target.value as Database['public']['Enums']['communication_status'] | '');
+  };
+  
+  // Handle type filter change
+  const handleTypeFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setTypeFilter(e.target.value as Database['public']['Enums']['communication_type'] | '');
   };
   
   // Handle sort field change
@@ -125,6 +144,21 @@ export function CommunicationsPage() {
               <option value="failed">Fallido</option>
             </select>
           </div>
+          
+          <div>
+            <label htmlFor="type-filter" className="block text-sm font-medium text-gray-700 mb-1">
+              Tipo
+            </label>
+            <select
+              id="type-filter"
+              value={typeFilter}
+              onChange={handleTypeFilterChange}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Todos</option>
+              <option value="new_booking">Nueva reserva</option>
+            </select>
+          </div>
         </div>
       </div>
       
@@ -172,6 +206,12 @@ export function CommunicationsPage() {
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                 >
+                  Tipo
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
                   Reservas
                 </th>
                 <th
@@ -187,9 +227,6 @@ export function CommunicationsPage() {
                       </span>
                     )}
                   </div>
-                </th>
-                <th scope="col" className="relative px-6 py-3">
-                  <span className="sr-only">Acciones</span>
                 </th>
               </tr>
             </thead>
@@ -217,6 +254,15 @@ export function CommunicationsPage() {
                   <tr 
                     key={comm.id}
                     className="hover:bg-gray-50 cursor-pointer"
+                    onClick={(e) => {
+                      // Only navigate if it's a left click and not on a link element
+                      if (e.button === undefined && e.target && !(e.target as Element).closest('a')) {
+                        navigate({ 
+                          to: '/communications/$communicationId',
+                          params: { communicationId: comm.id }
+                        });
+                      }
+                    }}
                   >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(comm.created_at)}
@@ -230,9 +276,16 @@ export function CommunicationsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 truncate max-w-xs">
+                      <Link
+                        to="/communications/$communicationId"
+                        params={{ communicationId: comm.id }}
+                        className="text-sm text-blue-600 hover:text-blue-800 truncate max-w-xs block"
+                      >
                         {comm.subject}
-                      </div>
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {getCommTypeText(comm.comm_type)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {comm.booking_count || 0}
@@ -241,15 +294,6 @@ export function CommunicationsPage() {
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClasses(comm.status)}`}>
                         {getStatusText(comm.status)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        to="/communications/$communicationId"
-                        params={{ communicationId: comm.id }}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Ver detalle
-                      </Link>
                     </td>
                   </tr>
                 ))

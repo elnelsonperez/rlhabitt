@@ -49,12 +49,14 @@ export const commsClient = {
    */
   async getCommunications({
     status,
+    type,
     page = 0,
     pageSize = 10,
     sortBy = 'created_at',
     sortOrder = 'desc'
   }: {
     status?: Database['public']['Enums']['communication_status'];
+    type?: Database['public']['Enums']['communication_type'];
     page?: number;
     pageSize?: number;
     sortBy?: string;
@@ -81,6 +83,10 @@ export const commsClient = {
     // Apply filters
     if (status) {
       query = query.eq('status', status);
+    }
+    
+    if (type) {
+      query = query.eq('comm_type', type);
     }
     
     // Apply sorting

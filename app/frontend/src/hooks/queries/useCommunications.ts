@@ -13,6 +13,7 @@ import { Database } from '../../lib/supabase/database.types';
 export function useInfiniteCommunications(
   filters: {
     status?: Database['public']['Enums']['communication_status'];
+    type?: Database['public']['Enums']['communication_type'];
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   },
