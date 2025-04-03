@@ -38,7 +38,12 @@ class CommunicationsService:
     def _format_date(self, value):
         """Format a date for display in templates."""
         if isinstance(value, (datetime, date)):
-            return value.strftime('%d/%m/%Y')
+            if isinstance(value, datetime):
+                # Format with 12-hour time
+                return value.strftime('%d/%m/%Y %I:%M %p')
+            else:
+                # Format date only
+                return value.strftime('%d/%m/%Y')
         return value
     
     def find_new_bookings(self, last_run_date: datetime) -> List[Dict]:

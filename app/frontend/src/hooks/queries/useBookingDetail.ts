@@ -59,7 +59,7 @@ export function useBookingDetail(bookingId: string | undefined) {
           ),
           guest:guest_id(id, name, email, phone, notes, created_at, updated_at),
           payment_source:payment_source_id(id, name, description, active, created_at, updated_at),
-          reservations:id(id, date, rate, color_hex, comment, apartment_id, created_at, updated_at)
+          reservations:reservations!reservations_booking_id_fkey(id, date, rate, color_hex, comment, apartment_id, created_at, updated_at)
         `)
         .eq('id', bookingId as string)
         .single()
