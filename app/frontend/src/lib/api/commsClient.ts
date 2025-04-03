@@ -43,6 +43,26 @@ export interface UpdateMessageResponse {
   status: string;
 }
 
+// Type for booking data in monthly breakdown
+export interface BookingForMonthlyBreakdown {
+  id: string;
+  check_in: string;
+  check_out: string | null;
+  nights: number | null;
+  total_amount: number | null;
+  apartment: {
+    id: string;
+    code: string | null;
+    admin_fee_percentage: number;
+  } | null;
+  guest: {
+    id: string;
+    name: string | null;
+  } | null;
+  reservations_count: number;
+  has_communication: boolean;
+}
+
 export const commsClient = {
   /**
    * Get communications with pagination
@@ -278,5 +298,167 @@ export const commsClient = {
     }
     
     return data;
+  },
+
+  /**
+   * Get all bookings for a specific owner in a given month
+   */
+  async getOwnerMonthlyBookings(ownerId: string, year: number, month: number) {
+    // Format date range for the selected month
+    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    
+    // Query bookings for apartments owned by this owner
+    const { data: apartments, error: apartmentsError } = await supabase
+      .from('apartments')
+      .select('id')
+      .eq('owner_id', ownerId);
+      
+    if (apartmentsError) {
+      throw apartmentsError;
+    }
+    
+    const apartmentIds = apartments.map(apt => apt.id);
+    
+    if (apartmentIds.length === 0) {
+      return { owner: null, bookings: [] };
+    }
+    
+    // Get owner details
+    const { data: owner, error: ownerError } = await supabase
+      .from('owners')
+      .select('id, name, email')
+      .eq('id', ownerId)
+      .single();
+      
+    if (ownerError) {
+      throw ownerError;
+    }
+    
+    // Get bookings for these apartments
+    const { data: bookings, error: bookingsError } = await supabase
+      .from('bookings')
+      .select(`
+        id, 
+        check_in, 
+        check_out,
+        nights, 
+        total_amount,
+        apartment:apartment_id (
+          id,
+          code,
+          admin_fee_percentage
+        ),
+        guest:guest_id (
+          id,
+          name
+        )
+      `)
+      .in('apartment_id', apartmentIds)
+      .gte('check_in', startDate)
+      .lte('check_in', endDate);
+      
+    if (bookingsError) {
+      throw bookingsError;
+    }
+    
+    // For each booking, get reservation count and check if it has been communicated
+    const bookingsWithDetails = await Promise.all(bookings.map(async (booking) => {
+      // Count reservations
+      const { count: reservationsCount } = await supabase
+        .from('reservations')
+        .select('id', { count: 'exact', head: true })
+        .eq('booking_id', booking.id);
+        
+      // Check if booking has communications
+      const { count: commCount } = await supabase
+        .from('booking_communications')
+        .select('communication_id', { count: 'exact', head: true })
+        .eq('booking_id', booking.id);
+        
+      return {
+        ...booking,
+        reservations_count: reservationsCount || 0,
+        has_communication: (commCount || 0) > 0
+      };
+    }));
+    
+    return {
+      owner,
+      bookings: bookingsWithDetails as BookingForMonthlyBreakdown[]
+    };
+  },
+
+  // TODO move this to backend
+  /**
+   * Create a monthly breakdown communication for an owner
+   */
+  async createMonthlyBreakdown({
+    ownerId,
+    bookingIds,
+    customMessage,
+    reportPeriod
+  }: {
+    ownerId: string;
+    bookingIds: string[];
+    customMessage?: string;
+    reportPeriod: { start: string; end: string };
+  }) {
+    // All of this needs to be moved to the API
+
+    // Get owner details
+    const { data: owner, error: ownerError } = await supabase
+      .from('owners')
+      .select('id, name, email')
+      .eq('id', ownerId)
+      .single();
+      
+    if (ownerError) {
+      throw ownerError;
+    }
+    
+    // Create the communication record
+    // First get the proper column names from Supabase
+    const { data: communication, error: commError } = await supabase
+      .from('communications')
+      .insert({
+        // Supabase uses snake_case for column names
+        owner_id: ownerId,
+        recipient_email: owner.email || '',
+        comm_type: 'new_booking',
+        status: 'pending',
+        subject: `Resumen mensual: ${new Date(reportPeriod.start).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`,
+        custom_message: customMessage || null,
+        report_period_start: reportPeriod.start,
+        report_period_end: reportPeriod.end,
+      })
+      .select()
+      .single();
+      
+    if (commError) {
+      throw commError;
+    }
+    
+    // Create booking_communications entries
+    const bookingCommunications = bookingIds.map(bookingId => ({
+      communication_id: communication.id,
+      booking_id: bookingId,
+      excluded: false
+    }));
+    
+    const { error: bcError } = await supabase
+      .from('booking_communications')
+      .insert(bookingCommunications);
+      
+    if (bcError) {
+      throw bcError;
+    }
+    
+    // Generate email content using the existing updateCustomMessage method
+    await this.updateCustomMessage(communication.id, customMessage || '');
+    
+    return {
+      communicationId: communication.id
+    };
   }
 };

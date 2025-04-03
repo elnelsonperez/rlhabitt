@@ -234,8 +234,32 @@ export function ReservationsGridPage() {
                       boxShadow: 'rgb(0 0 0 / 35%) -8px 0px 3px -8px inset, rgba(0, 0, 0, 0.08) 3px 0px 5px -8px'
                     }}
                   >
-                    <div className="font-medium">
-                      {apartment.code || apartment.raw_text}
+                    <div className="flex justify-between items-center">
+                      <div className="font-medium truncate mr-1">
+                        {apartment.code || apartment.raw_text}
+                      </div>
+                      {apartment.owners && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate({
+                              to: '/monthly-breakdown',
+                              search: {
+                                ownerId: apartment.owners?.id || '',
+                                year: year.toString(),
+                                month: month.toString(),
+                                buildingId: selectedBuildingId
+                              },
+                            })
+                          }}
+                          className="p-0.5 bg-gray-100 border border-gray-200 rounded hover:bg-blue-100 hover:border-blue-300 hover:text-blue-600 transition-all transform hover:scale-110 cursor-pointer"
+                          title={`Enviar resumen mensual a ${apartment.owners.name}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                     {apartment.owners && apartment.owners.name !== (apartment.code || apartment.raw_text) && (
                       <div className="text-[9px] text-gray-500 truncate">

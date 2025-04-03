@@ -11,6 +11,7 @@ import { BookingDetailPage } from './pages/BookingDetail'
 import { ImportPage } from './pages/Import'
 import { CommunicationsPage } from './pages/Communications'
 import { CommunicationDetailPage } from './pages/CommunicationDetail'
+import { MonthlyBreakdownPage } from './pages/MonthlyBreakdown'
 import { useAuthStore } from './store/auth'
 import { AppLayout } from './components/Layout'
 
@@ -112,6 +113,21 @@ const loginRoute = createRoute({
   },
 })
 
+// Monthly Breakdown page (protected by layout)
+const monthlyBreakdownRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/monthly-breakdown',
+  component: MonthlyBreakdownPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      ownerId: search.ownerId as string | undefined,
+      buildingId: search.buildingId as string | undefined,
+      year: search.year as string | undefined,
+      month: search.month as string | undefined
+    }
+  }
+})
+
 // Create router with routes
 const routeTree = rootRoute.addChildren([
   layoutRoute.addChildren([
@@ -121,6 +137,7 @@ const routeTree = rootRoute.addChildren([
     importRoute,
     communicationsRoute,
     communicationDetailRoute,
+    monthlyBreakdownRoute,
   ]),
   loginRoute,
 ])

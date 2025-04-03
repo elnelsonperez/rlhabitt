@@ -127,3 +127,45 @@ export function useBookingReservations(bookingId: string | undefined) {
   });
 }
 
+/**
+ * Hook for fetching monthly bookings for an owner
+ */
+export function useOwnerMonthlyBookings(ownerId: string | undefined, year: number, month: number) {
+  return useQuery({
+    queryKey: ['owner_monthly_bookings', ownerId, year, month],
+    queryFn: () => ownerId ? commsClient.getOwnerMonthlyBookings(ownerId, year, month) : null,
+    enabled: !!ownerId
+  });
+}
+
+/**
+ * Hook for creating a monthly breakdown communication
+ */
+export function useCreateMonthlyBreakdown() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({
+      ownerId,
+      bookingIds,
+      customMessage,
+      reportPeriod
+    }: {
+      ownerId: string;
+      bookingIds: string[];
+      customMessage?: string;
+      reportPeriod: { start: string; end: string };
+    }) => commsClient.createMonthlyBreakdown({
+      ownerId,
+      bookingIds,
+      customMessage,
+      reportPeriod
+    }),
+    
+    onSuccess: () => {
+      // Invalidate communications list
+      queryClient.invalidateQueries({ queryKey: ['communications'] });
+    }
+  });
+}
+

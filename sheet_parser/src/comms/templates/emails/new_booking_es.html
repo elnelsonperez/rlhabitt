@@ -117,8 +117,7 @@
                 <th>Huésped</th>
                 <th>Entrada</th>
                 <th>Salida</th>
-                {% if has_split_bookings %}<th>Noches (Total)</th>{% endif %}
-                <th>{% if has_split_bookings %}Noches (Mes Actual){% else %}Noches{% endif %}</th>
+                <th>Noches</th>
                 <th>{% if has_split_bookings %}Importe Mes Actual{% else %}Importe Total{% endif %}</th>
                 <th>Tarifa Admin ({{ admin_fee_percentage }}%)</th>
                 <th>Su Ganancia</th>
@@ -131,7 +130,6 @@
                 <td>{{ booking.guest_name }}</td>
                 <td>{{ booking.check_in|format_date }}</td>
                 <td>{{ booking.check_out|format_date }}</td>
-                {% if has_split_bookings %}<td>{{ booking.total_nights }}</td>{% endif %}
                 <td>{{ booking.current_month_nights }}</td>
                 <td>${{ "%.2f"|format(booking.current_month_amount) }}</td>
                 <td>${{ "%.2f"|format(booking.admin_fee) }}</td>
@@ -140,7 +138,7 @@
             {% if booking.previous_month_nights > 0 or booking.future_month_nights > 0 %}
             <tr style="background-color: #f9f9f9; font-style: italic; font-size: 0.9em;">
                 <td colspan="4" style="text-align: right; color: #666;">Desglose por períodos:</td>
-                <td colspan="{% if has_split_bookings %}5{% else %}4{% endif %}">
+                <td colspan="4">
                     {% if booking.previous_month_nights > 0 %}
                     <div>Mes anterior: {{ booking.previous_month_nights }} noches - ${{ "%.2f"|format(booking.previous_month_amount) }} (ya incluido en pago anterior)</div>
                     {% endif %}
