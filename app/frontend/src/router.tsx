@@ -12,8 +12,12 @@ import { ImportPage } from './pages/Import'
 import { CommunicationsPage } from './pages/Communications'
 import { CommunicationDetailPage } from './pages/CommunicationDetail'
 import { MonthlyBreakdownPage } from './pages/MonthlyBreakdown'
+import { ApartmentsPage } from './pages/Apartments'
+import { ApartmentDetailPage } from './pages/ApartmentDetail'
+import { OwnerDetailPage } from './pages/OwnerDetail'
 import { useAuthStore } from './store/auth'
 import { AppLayout } from './components/Layout'
+import { ApartmentFilters } from './hooks/queries/useApartments';
 
 // Create the root route
 const rootRoute = createRootRoute({
@@ -128,6 +132,34 @@ const monthlyBreakdownRoute = createRoute({
   }
 })
 
+// Apartments list page (protected by layout)
+const apartmentsRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/apartments',
+  component: ApartmentsPage,
+  validateSearch: (search: Record<string, unknown>): ApartmentFilters => {
+    return {
+      buildingId: search.buildingId as string | undefined,
+      ownerId: search.ownerId as string | undefined,
+      search: search.search as string | undefined
+    }
+  }
+});
+
+// Apartment detail page (protected by layout)
+const apartmentDetailRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/apartments/$apartmentId',
+  component: ApartmentDetailPage,
+});
+
+// Owner detail page (protected by layout)
+const ownerDetailRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/owners/$ownerId',
+  component: OwnerDetailPage,
+});
+
 // Create router with routes
 const routeTree = rootRoute.addChildren([
   layoutRoute.addChildren([
@@ -138,6 +170,9 @@ const routeTree = rootRoute.addChildren([
     communicationsRoute,
     communicationDetailRoute,
     monthlyBreakdownRoute,
+    apartmentsRoute,
+    apartmentDetailRoute,
+    ownerDetailRoute,
   ]),
   loginRoute,
 ])

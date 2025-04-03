@@ -33,17 +33,36 @@ export function Header() {
               <Link
                 to="/reservations"
                 search={{}}
-                activeProps={{ className: 'font-bold text-white' }}
-                inactiveProps={{ className: 'text-gray-300 hover:text-white' }}
+                activeProps={{ 
+                  className: 'text-white border-b-2 border-blue-400 pb-1'
+                }}
+                inactiveProps={{ 
+                  className: 'text-gray-300 hover:text-white pb-1 border-b-2 border-transparent'
+                }}
               >
                 Tabla de Reservas
               </Link>
               <Link
                 to="/communications"
-                activeProps={{ className: 'font-bold text-white' }}
-                inactiveProps={{ className: 'text-gray-300 hover:text-white' }}
+                activeProps={{ 
+                  className: 'text-white border-b-2 border-blue-400 pb-1'
+                }}
+                inactiveProps={{ 
+                  className: 'text-gray-300 hover:text-white pb-1 border-b-2 border-transparent'
+                }}
               >
                 Comunicaciones
+              </Link>
+              <Link
+                to="/apartments"
+                activeProps={{ 
+                  className: 'text-white border-b-2 border-blue-400 pb-1'
+                }}
+                inactiveProps={{ 
+                  className: 'text-gray-300 hover:text-white pb-1 border-b-2 border-transparent'
+                }}
+              >
+                Apartamentos
               </Link>
             </nav>
           )}
