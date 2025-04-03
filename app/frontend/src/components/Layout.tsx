@@ -1,11 +1,13 @@
 import { Outlet } from '@tanstack/react-router'
 import { Header } from './Header'
+import { NotificationsBar } from './NotificationsBar'
 import { useAuthStore } from '../store/auth'
 import { useEffect } from 'react'
 
 // Add global styles for fullscreen mode
 const fullscreenStyles = `
-  body.fullscreen-mode header {
+  body.fullscreen-mode header,
+  body.fullscreen-mode .notification-bar {
     display: none;
   }
   
@@ -48,6 +50,7 @@ export function AppLayout() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
+      <NotificationsBar pollingInterval={30000} />
       <main className="flex-1 p-4">
         <Outlet />
       </main>
