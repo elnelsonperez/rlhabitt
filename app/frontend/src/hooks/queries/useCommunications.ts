@@ -81,3 +81,37 @@ export function useApproveCommunication() {
     }
   });
 }
+
+/**
+ * Hook for updating custom message and regenerating email content
+ */
+export function useUpdateCustomMessage() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({
+      id,
+      customMessage
+    }: {
+      id: string;
+      customMessage: string;
+    }) => commsClient.updateCustomMessage(id, customMessage),
+    
+    onSuccess: (data, variables) => {
+      // Update the communication in the cache with the new content
+      queryClient.setQueryData(['communication', variables.id], (oldData: any) => {
+        if (!oldData) return oldData;
+        
+        return {
+          ...oldData,
+          communication: {
+            ...oldData.communication,
+            custom_message: variables.customMessage,
+            content: data.content
+          }
+        };
+      });
+    }
+  });
+}
+

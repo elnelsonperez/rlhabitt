@@ -46,6 +46,7 @@ def create_app():
     from .reservation_routes import reservation_bp, init_cache
     from .import_routes import import_bp
     from .onedrive_auth_route import onedrive_auth_bp
+    from .communication_routes import communication_bp
     
     # Initialize the cache for reservation routes
     init_cache(app)
@@ -54,6 +55,7 @@ def create_app():
     app.register_blueprint(reservation_bp)
     app.register_blueprint(import_bp)
     app.register_blueprint(onedrive_auth_bp)
+    app.register_blueprint(communication_bp)
     
     return app
 

@@ -1,8 +1,12 @@
 /**
  * Communications API client for interacting with the owner communication system
+ * Includes both Supabase database operations and API calls to the sheet_parser service
  */
 import { supabase } from '../supabase/client';
 import { Database, Tables } from '../supabase/database.types';
+
+// Use the environment variable for the API URL
+const API_BASE_URL = import.meta.env.VITE_SHEET_PARSER_API_URL || 'http://localhost:5000';
 
 // Base types from the database schema
 type CommunicationRow = Tables<'communications'>;
@@ -29,7 +33,16 @@ interface BookingWithRelations extends BookingRow {
   guest?: Pick<GuestRow, 'name'>;
 }
 
+
 // Communications API client for making requests related to communications
+// Type for the update custom message response
+export interface UpdateMessageResponse {
+  communication_id: string;
+  custom_message: string;
+  content: string;
+  status: string;
+}
+
 export const commsClient = {
   /**
    * Get communications with pagination
@@ -209,5 +222,37 @@ export const commsClient = {
     } catch (error) {
       throw error;
     }
+  },
+  
+  /**
+   * Update custom message and regenerate email content
+   */
+  async updateCustomMessage(id: string, customMessage: string): Promise<UpdateMessageResponse> {
+    // Get user's access token from Supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    
+    if (!token) {
+      throw new Error('Authentication required to update communications');
+    }
+    
+    // Call the API endpoint
+    const response = await fetch(`${API_BASE_URL}/api/comms/update-message/${id}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        custom_message: customMessage
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to update custom message');
+    }
+    
+    return await response.json();
   }
 };

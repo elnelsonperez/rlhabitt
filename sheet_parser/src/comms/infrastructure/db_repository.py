@@ -227,3 +227,16 @@ class CommunicationsRepository:
         
         self.session.execute(stmt)
         self.session.commit()
+    
+    def update_communication_custom_message(self,
+                                          communication_id: uuid.UUID,
+                                          custom_message: str) -> None:
+        """Update the custom message of a communication."""
+        stmt = update(Communication).where(
+            Communication.id == communication_id
+        ).values(
+            custom_message=custom_message
+        )
+        
+        self.session.execute(stmt)
+        self.session.commit()

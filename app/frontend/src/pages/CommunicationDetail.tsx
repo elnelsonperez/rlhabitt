@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { useCommunication, useApproveCommunication } from '../hooks/queries/useCommunications';
+import { useCommunication, useApproveCommunication, useUpdateCustomMessage } from '../hooks/queries/useCommunications';
 import { BookingCommunicationWithRelations } from '../lib/api/commsClient';
+import { EmailPreviewModal } from '../components/EmailPreviewModal';
 
 // Helper function to format dates
 const formatDate = (dateString: string | null) => {
@@ -50,16 +51,17 @@ const getStatusText = (status: string) => {
 export function CommunicationDetailPage() {
   const { communicationId } = useParams({ from: '/layout/communications/$communicationId' });
   
-  // Local state for form
+  // Local state for form and UI
   const [excludedBookingIds, setExcludedBookingIds] = useState<string[]>([]);
   const [customMessage, setCustomMessage] = useState<string>('');
-  const [previewHtml, setPreviewHtml] = useState<boolean>(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState<boolean>(false);
   
   // Fetch communication data
   const { data, isLoading, error } = useCommunication(communicationId);
   
-  // Approve mutation
+  // Mutations
   const approveMutation = useApproveCommunication();
+  const updateMessageMutation = useUpdateCustomMessage();
   
   // Toggle booking exclusion
   const toggleBookingExclusion = (bookingId: string) => {
@@ -78,6 +80,16 @@ export function CommunicationDetailPage() {
       id: communicationId,
       excludedBookingIds,
       customMessage: customMessage.trim() || undefined
+    });
+  };
+  
+  // Handle updating custom message
+  const handleUpdateCustomMessage = () => {
+    if (!communicationId) return;
+    
+    updateMessageMutation.mutate({
+      id: communicationId,
+      customMessage: customMessage.trim() || ""
     });
   };
   
@@ -296,18 +308,38 @@ export function CommunicationDetailPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   rows={4}
                 />
-                <p className="mt-1 text-sm text-gray-500">
-                  Este mensaje se incluirá en el correo enviado al propietario.
-                </p>
+                <div className="mt-2 flex justify-between items-center">
+                  <p className="text-sm text-gray-500">
+                    Este mensaje se incluirá en el correo enviado al propietario.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleUpdateCustomMessage}
+                    disabled={updateMessageMutation.isPending}
+                    className="ml-2 px-3 py-1 bg-gray-100 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {updateMessageMutation.isPending ? 'Actualizando...' : 'Actualizar mensaje'}
+                  </button>
+                </div>
+                {updateMessageMutation.isSuccess && (
+                  <p className="mt-2 text-sm text-green-600">
+                    Mensaje actualizado correctamente
+                  </p>
+                )}
+                {updateMessageMutation.isError && (
+                  <p className="mt-2 text-sm text-red-600">
+                    Error: {updateMessageMutation.error.message}
+                  </p>
+                )}
               </div>
               
               <div className="flex justify-between mt-6">
                 <button
                   type="button"
-                  onClick={() => setPreviewHtml(!previewHtml)}
+                  onClick={() => setIsPreviewModalOpen(true)}
                   className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {previewHtml ? 'Ocultar Vista Previa' : 'Ver Vista Previa HTML'}
+                  Ver Vista Previa HTML
                 </button>
                 
                 <button
@@ -334,22 +366,16 @@ export function CommunicationDetailPage() {
             </div>
           )}
           
-          {/* Email HTML preview */}
-          {previewHtml && data.communication.content && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Vista Previa del Email</h3>
-              <div className="border border-gray-200 rounded-md p-4 bg-gray-50">
-                <iframe
-                  srcDoc={data.communication.content}
-                  title="Email Preview"
-                  className="w-full min-h-[500px] border-0"
-                  sandbox="allow-same-origin"
-                />
-              </div>
-            </div>
-          )}
         </div>
       ) : null}
+      
+      {/* Email Preview Modal */}
+      <EmailPreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        title={data?.communication.subject || 'Vista Previa del Email'}
+        html={data?.communication.content || '<div class="p-4 text-center">No hay contenido disponible</div>'}
+      />
     </div>
   );
 }
