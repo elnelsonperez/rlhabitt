@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevas Reservas en su Propiedad</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .company-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .greeting {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        .period {
+            font-style: italic;
+            margin-bottom: 20px;
+            color: #7f8c8d;
+        }
+        .custom-message {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #2c3e50;
+            margin-bottom: 25px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        th {
+            background-color: #2c3e50;
+            color: white;
+            text-align: left;
+            padding: 10px;
+        }
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .summary {
+            background-color: #eaf7fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 25px;
+        }
+        .summary-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .total {
+            font-weight: bold;
+        }
+        .footer {
+            text-align: center;
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="company-name">RLHabitt</div>
+    </div>
+
+    <div class="greeting">
+        Estimado/a {{ owner_name }},
+    </div>
+
+    <div class="period">
+        Reporte de reservas para el período: {{ report_period_start }} - {{ report_period_end }}
+    </div>
+
+    {% if custom_message %}
+    <div class="custom-message">
+        {{ custom_message }}
+    </div>
+    {% endif %}
+
+    <p>Nos complace informarle que se han realizado las siguientes reservas para su(s) propiedad(es):</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Apartamento</th>
+                <th>Huésped</th>
+                <th>Entrada</th>
+                <th>Salida</th>
+                <th>Importe Total</th>
+                <th>Tarifa Admin ({{ admin_fee_percentage }}%)</th>
+                <th>Su Ganancia</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for booking in bookings %}
+            <tr>
+                <td>{{ booking.apartment_name }}</td>
+                <td>{{ booking.guest_name }}</td>
+                <td>{{ booking.check_in|date }}</td>
+                <td>{{ booking.check_out|date }}</td>
+                <td>${{ booking.total_amount|floatformat:2 }}</td>
+                <td>${{ booking.admin_fee|floatformat:2 }}</td>
+                <td>${{ booking.owner_amount|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="summary">
+        <div class="summary-title">Resumen Financiero:</div>
+        <p>Importe Total de Reservas: ${{ total_amount|floatformat:2 }}</p>
+        <p>Total Tarifa Administrativa: ${{ total_admin_fee|floatformat:2 }}</p>
+        <p class="total">Su Ganancia Total: ${{ total_owner_amount|floatformat:2 }}</p>
+    </div>
+
+    <p>
+        Los pagos se procesarán de acuerdo con nuestro calendario habitual. Si tiene alguna pregunta sobre estas reservas,
+        no dude en ponerse en contacto con nosotros.
+    </p>
+
+    <p>
+        Gracias por confiar en RLHabitt para la gestión de su propiedad.
+    </p>
+
+    <div class="footer">
+        <p>RLHabitt - Gestión de Propiedades de Alquiler</p>
+        <p>Email: info@rlhabitt.com | Teléfono: +123 456 7890</p>
+    </div>
+</body>
+</html>
